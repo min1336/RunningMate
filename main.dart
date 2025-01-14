@@ -44,7 +44,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
     _mapController!.addOverlay(NPolylineOverlay(
       id: 'route',
-      color: Colors.deepPurple.withOpacity(0.7),  // 부드러운 보라색 + 투명도
+      color: Colors.blue,
       width: 8,  // 두꺼운 경로선
       coords: polylineCoordinates,
     ));
@@ -175,8 +175,9 @@ class _NaverMapAppState extends State<NaverMapApp> {
                 options: const NaverMapViewOptions(
                   initialCameraPosition: NCameraPosition(
                     target: NLatLng(37.5665, 126.9780),
-                    zoom: 12,
+                    zoom: 10,
                   ),
+                  locationButtonEnable: true,
                 ),
                 onMapReady: (controller) {
                   _mapController = controller;
