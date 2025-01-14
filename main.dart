@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'dart:developer';
-
+import 'dart:convert';
+import 'dart:math';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -10,13 +11,9 @@ void main() async {
   runApp(const NaverMapApp());
 }
 
-// 지도 초기화하기
 Future<void> _initialize() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NaverMapSdk.instance.initialize(
-      clientId: 'rz7lsxe3oo',     // 클라이언트 ID 설정
-      onAuthFailed: (e) => log("네이버맵 인증오류 : $e", name: "onAuthFailed")
-  );
+  await NaverMapSdk.instance.initialize(clientId: 'rz7lsxe3oo');
 }
 
 class NaverMapApp extends StatefulWidget {
@@ -27,6 +24,113 @@ class NaverMapApp extends StatefulWidget {
 }
 
 class _NaverMapAppState extends State<NaverMapApp> {
+  NaverMapController? _mapController;
+  final TextEditingController _startController = TextEditingController();
+  final TextEditingController _distanceController = TextEditingController();
+
+  NLatLng? _start;
+  List<NLatLng> _waypoints = [];
+
+  void _drawRoute(Map<String, dynamic> routeData) {
+    if (_mapController == null) return;
+
+    final List<NLatLng> polylineCoordinates = [];
+    final route = routeData['route']['trafast'][0];
+    final path = route['path'];
+
+    for (var coord in path) {
+      polylineCoordinates.add(NLatLng(coord[1], coord[0]));
+    }
+
+    _mapController!.addOverlay(NPolylineOverlay(
+      id: 'route',
+      color: Colors.deepPurple.withOpacity(0.7),  // 부드러운 보라색 + 투명도
+      width: 8,  // 두꺼운 경로선
+      coords: polylineCoordinates,
+    ));
+  }
+
+
+  Future<void> _setupWaypoints(NLatLng startLatLng, double totalDistance) async {
+    List<NLatLng> waypoints = [];
+    double distancePerSegment = (totalDistance / 2.0) / 4.0;
+
+    NLatLng currentLocation = startLatLng;
+    Random random = Random();
+
+    for (int i = 1; i <= 3; i++) {
+      double angle = (random.nextDouble() * 2 * pi) / i;  // 점차 부드럽게
+      currentLocation = await _calculateWaypoint(currentLocation, distancePerSegment, angle);
+      waypoints.add(currentLocation);
+    }
+
+    _waypoints = waypoints;
+  }
+
+  Future<NLatLng> _calculateWaypoint(NLatLng start, double distance, double angle) async {
+    const earthRadius = 6371000.0;
+    final deltaLat = (distance / earthRadius) * cos(angle);
+    final deltaLon = (distance / (earthRadius * cos(start.latitude * pi / 180))) * sin(angle);
+
+    final newLat = start.latitude + (deltaLat * 180 / pi);
+    final newLon = start.longitude + (deltaLon * 180 / pi);
+
+    return NLatLng(newLat, newLon);
+  }
+
+  Future<NLatLng> getLocation(String address) async {
+    const clientId = 'rz7lsxe3oo';
+    const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg';
+    final url = 'https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${Uri.encodeComponent(address)}';
+
+    final response = await http.get(Uri.parse(url), headers: {
+      'X-NCP-APIGW-API-KEY-ID': clientId,
+      'X-NCP-APIGW-API-KEY': clientSecret,
+    });
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['addresses'] == null || data['addresses'].isEmpty) {
+        throw Exception('주소를 찾을 수 없습니다.');
+      }
+      final lat = double.parse(data['addresses'][0]['y']);
+      final lon = double.parse(data['addresses'][0]['x']);
+      return NLatLng(lat, lon);
+    } else {
+      throw Exception('위치 정보를 불러오지 못했습니다.');
+    }
+  }
+
+  Future<void> _getDirections() async {
+    if (_mapController == null) return;
+
+    const clientId = 'rz7lsxe3oo';
+    const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg';
+    final waypointsParam = _waypoints.map((point) => '${point.longitude},${point.latitude}').join('|');
+
+    // ✅ URL 경로 수정
+    final url = 'https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving'
+        '?start=${_start!.longitude},${_start!.latitude}'
+        '&goal=${_start!.longitude},${_start!.latitude}'
+        '&waypoints=$waypointsParam'
+        '&option=trafast';  // 빠른 길 옵션
+
+    final response = await http.get(Uri.parse(url), headers: {
+      'X-NCP-APIGW-API-KEY-ID': clientId,
+      'X-NCP-APIGW-API-KEY': clientSecret,
+    });
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      _drawRoute(data);
+    } else {
+      // ❗ 오류 응답 출력
+      print('❗ Error: ${response.statusCode}');
+      print('❗ Response Body: ${response.body}');
+      throw Exception('자동차 도로 경로 요청에 실패했습니다.');
+    }
+  }
+
 
   @override
   void initState() {
@@ -36,72 +140,59 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
   @override
   Widget build(BuildContext context) {
-    // NaverMapController 객체의 비동기 작업 완료를 나타내는 Completer 생성
-    final Completer<NaverMapController> mapControllerCompleter = Completer();
-
     return MaterialApp(
       home: Scaffold(
-        body: NaverMap(
-          options: const NaverMapViewOptions(
-            indoorEnable: true,             // 실내 맵 사용 가능 여부 설정
-            locationButtonEnable: true,    // 위치 버튼 표시 여부 설정
-          ),
-          onMapReady: (controller) async {                // 지도 준비 완료 시 호출되는 콜백 함수
-            mapControllerCompleter.complete(controller);  // Completer에 지도 컨트롤러 완료 신호 전송
-            log("onMapReady", name: "onMapReady");
-
-            final marker = NMarker(
-              id: 'test',
-              position:
-                const NLatLng(37.506932467450326, 127.05578661133796));
-            final marker1 = NMarker(
-              id: 'test1',
-              position:
-                const NLatLng(37.606932467450326, 127.05578661133796));
-            controller.addOverlayAll({marker, marker1});
-            controller.setLocationTrackingMode(NLocationTrackingMode.follow);
-
-            final onMarkerInfoWindow =
-                NInfoWindow.onMarker(id: marker.info.id, text: "멋쟁이 사자처럼");
-            marker.openInfoWindow(onMarkerInfoWindow);
-            //경로선 추가
-            //_addPathOverlay(controller);
-          },
+        appBar: AppBar(title: const Text('Naver Map Directions')),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _startController,
+                    decoration: const InputDecoration(labelText: '출발지 주소 입력'),
+                  ),
+                  TextField(
+                    controller: _distanceController,
+                    decoration: const InputDecoration(labelText: '달릴 거리 입력 (미터)'),
+                    keyboardType: TextInputType.number,
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final totalDistance = double.parse(_distanceController.text);
+                      _start = await getLocation(_startController.text);
+                      await _setupWaypoints(_start!, totalDistance);
+                      await _getDirections();
+                    },
+                    child: const Text('경로 표시'),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: NaverMap(
+                options: const NaverMapViewOptions(
+                  initialCameraPosition: NCameraPosition(
+                    target: NLatLng(37.5665, 126.9780),
+                    zoom: 12,
+                  ),
+                ),
+                onMapReady: (controller) {
+                  _mapController = controller;
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-
-
-void _addPathOverlay(NaverMapController controller) {
-  // 경로 좌표 설정
-  final pathCoordinates = [
-    NLatLng(37.57152, 126.97714),
-    NLatLng(37.56607, 126.98268),
-    NLatLng(37.56445, 126.97707),
-    NLatLng(37.55855, 126.97822),
-  ];
-
-  // PathOverlay 생성
-  final pathOverlay = NPolylineOverlay(
-    id: 'path_1',
-    coords: pathCoordinates, // 경로 좌표 추가
-    color: Colors.red,            // 경로선 색상 설정
-    width: 5,                     // 경로선 두께 설정
-  );
-
-  // 지도 위에 경로선 추가
-  controller.addOverlay(pathOverlay);
-}
-
 void _permission() async {
   var status = await Permission.location.status;
-  if (status.isGranted) {
-    //print('허락됨');
-  } else if (status.isDenied) {
-    //print('거절됨');
-    Permission.location.request();   // 현재 거절된 상태니 팝업창 띄워달라는 코드
+  if (!status.isGranted) {
+    await Permission.location.request();
   }
 }
