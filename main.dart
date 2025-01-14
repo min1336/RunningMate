@@ -100,20 +100,72 @@ class _NaverMapAppState extends State<NaverMapApp> {
       throw Exception('위치 정보를 불러오지 못했습니다.');
     }
   }
+// 시작 위치로 카메라 이동
+  Future<void> _moveCameraToStart() async {
+    if (_mapController != null && _start != null) {
+      await _mapController!.updateCamera(
+        NCameraUpdate.withParams(
+          target: _start!,
+          zoom: 15,  // 적당한 확대 수준
+        ),
+      );
+    }
+  }
+// ⭐ 지도 위에 총 거리(km) 표시
+  // ⭐ 지도 위에 총 거리(km) 표시 (수정 버전)
+  void _showTotalDistance(int distanceInMeters) {
+    if (_mapController == null || _start == null) return;
 
+    final distanceInKm = (distanceInMeters / 1000).toStringAsFixed(2);
+
+    // ✅ NMarker의 caption 속성 활용
+    _mapController!.addOverlay(NMarker(
+      id: 'distance_marker',
+      position: _start!,
+      caption: NOverlayCaption(
+        text: '총 거리: $distanceInKm km',
+        textSize: 14.0,
+        color: Colors.black,
+        haloColor: Colors.white,
+      ),
+    ));
+  }
+
+// ⭐ 경유지마다 마커를 추가하는 함수
+  void _addWaypointMarkers() {
+    if (_mapController == null) return;
+
+    for (int i = 0; i < _waypoints.length; i++) {
+      final waypoint = _waypoints[i];
+
+      _mapController!.addOverlay(NMarker(
+        id: 'waypoint_marker_$i',
+        position: waypoint,
+        caption: NOverlayCaption(
+          text: '경유지 ${i + 1}',
+          textSize: 14.0,
+          color: Colors.blue,
+          haloColor: Colors.white,
+        ),
+      ));
+    }
+  }
+
+// 🚀 _getDirections 함수 수정: 경유지 마커 추가
   Future<void> _getDirections() async {
     if (_mapController == null) return;
+
+    await _moveCameraToStart();  // 🚀 카메라 이동
 
     const clientId = 'rz7lsxe3oo';
     const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg';
     final waypointsParam = _waypoints.map((point) => '${point.longitude},${point.latitude}').join('|');
 
-    // ✅ URL 경로 수정
     final url = 'https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving'
         '?start=${_start!.longitude},${_start!.latitude}'
         '&goal=${_start!.longitude},${_start!.latitude}'
         '&waypoints=$waypointsParam'
-        '&option=trafast';  // 빠른 길 옵션
+        '&option=trafast';
 
     final response = await http.get(Uri.parse(url), headers: {
       'X-NCP-APIGW-API-KEY-ID': clientId,
@@ -123,13 +175,21 @@ class _NaverMapAppState extends State<NaverMapApp> {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       _drawRoute(data);
+
+      // ✅ 전체 거리 정보 추출 및 표시
+      final totalDistance = data['route']['trafast'][0]['summary']['distance'];  // 전체 거리(m)
+      _showTotalDistance(totalDistance);  // 지도에 거리 표시
+
+      // ✅ 경유지마다 마커 추가
+      _addWaypointMarkers();
     } else {
-      // ❗ 오류 응답 출력
       print('❗ Error: ${response.statusCode}');
       print('❗ Response Body: ${response.body}');
       throw Exception('자동차 도로 경로 요청에 실패했습니다.');
     }
   }
+
+
 
 
   @override
