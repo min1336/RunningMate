@@ -32,6 +32,10 @@ class _NaverMapAppState extends State<NaverMapApp> {
   NLatLng? _start;
   List<NLatLng> _waypoints = [];
 
+  double _calculatedDistance = 0.0;
+
+  bool _isLoading = false;  // 🔥 로딩 상태 추가
+
   // HTML 태그 제거 함수
   String _removeHtmlTags(String text) {
     final regex = RegExp(r'<[^>]*>');
@@ -89,7 +93,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
     if (_mapController == null) return;
 
     final List<NLatLng> polylineCoordinates = [];
-    final route = routeData['route']['trafast'][0];
+    final route = routeData['route']['traavoidcaronly'][0];
     final path = route['path'];
 
     for (var coord in path) {
@@ -98,28 +102,76 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
     _mapController!.addOverlay(NPolylineOverlay(
       id: 'route',
-      color: Colors.blue,
-      width: 8,  // 두꺼운 경로선
+      color: Colors.lightGreen,
+      width: 4,
       coords: polylineCoordinates,
     ));
   }
 
+  Future<List<NLatLng>> _generateWaypoints(NLatLng start, double totalDistance) async {
+    const int numberOfWaypoints = 5;  // 경유지 개수
+    final Random random = Random();
+    final List<NLatLng> waypoints = [];
 
-  Future<void> _setupWaypoints(NLatLng startLatLng, double totalDistance) async {
-    List<NLatLng> waypoints = [];
-    double distancePerSegment = (totalDistance / 2.0) / 4.0;
-
-    NLatLng currentLocation = startLatLng;
-    Random random = Random();
-
-    for (int i = 1; i <= 3; i++) {
-      double angle = (random.nextDouble() * 2 * pi) / i;  // 점차 부드럽게
-      currentLocation = await _calculateWaypoint(currentLocation, distancePerSegment, angle);
-      waypoints.add(currentLocation);
+    for (int i = 0; i < numberOfWaypoints; i++) {
+      final double angle = random.nextDouble() * 2 * pi;
+      final double distance = (totalDistance / numberOfWaypoints) * random.nextDouble();
+      final NLatLng waypoint = await _calculateWaypoint(start, distance, angle);
+      waypoints.add(waypoint);
     }
 
-    _waypoints = waypoints;
+    return waypoints;
   }
+
+
+  Future<List<NLatLng>> optimizeWaypoints(List<NLatLng> waypoints) async {
+    if (waypoints.isEmpty) return waypoints;
+
+    List<int> bestOrder = List.generate(waypoints.length, (index) => index);
+    double bestDistance = _calculateTotalDistance(waypoints, bestOrder);
+
+    bool improved = true;
+    while (improved) {
+      improved = false;
+      for (int i = 1; i < waypoints.length - 1; i++) {
+        for (int j = i + 1; j < waypoints.length; j++) {
+          List<int> newOrder = List.from(bestOrder);
+          newOrder.setRange(i, j + 1, bestOrder.sublist(i, j + 1).reversed);
+          double newDistance = _calculateTotalDistance(waypoints, newOrder);
+          if (newDistance < bestDistance) {
+            bestDistance = newDistance;
+            bestOrder = newOrder;
+            improved = true;
+          }
+        }
+      }
+    }
+
+    return bestOrder.map((index) => waypoints[index]).toList();
+  }
+
+  double _calculateTotalDistance(List<NLatLng> waypoints, List<int> order) {
+    double totalDistance = 0.0;
+    for (int i = 0; i < order.length - 1; i++) {
+      totalDistance += _calculateDistance(waypoints[order[i]], waypoints[order[i + 1]]);
+    }
+    return totalDistance;
+  }
+
+  double _calculateDistance(NLatLng point1, NLatLng point2) {
+    const earthRadius = 6371000.0;
+    final dLat = _degreesToRadians(point2.latitude - point1.latitude);
+    final dLon = _degreesToRadians(point2.longitude - point1.longitude);
+    final a = pow(sin(dLat / 2), 2) +
+        cos(_degreesToRadians(point1.latitude)) * cos(_degreesToRadians(point2.latitude)) * pow(sin(dLon / 2), 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  double _degreesToRadians(double degree) {
+    return degree * pi / 180;
+  }
+
 
   Future<NLatLng> _calculateWaypoint(NLatLng start, double distance, double angle) async {
     const earthRadius = 6371000.0;
@@ -168,20 +220,15 @@ class _NaverMapAppState extends State<NaverMapApp> {
 // ⭐ 지도 위에 총 거리(km) 표시
   // ⭐ 지도 위에 총 거리(km) 표시 (수정 버전)
   void _showTotalDistance(int distanceInMeters) {
+    setState(() {
+      _calculatedDistance = distanceInMeters / 1000;  // m → km 변환
+    });
+
     if (_mapController == null || _start == null) return;
 
-    final distanceInKm = (distanceInMeters / 1000).toStringAsFixed(2);
-
-    // ✅ NMarker의 caption 속성 활용
     _mapController!.addOverlay(NMarker(
       id: 'distance_marker',
       position: _start!,
-      caption: NOverlayCaption(
-        text: '총 거리: $distanceInKm km',
-        textSize: 14.0,
-        color: Colors.black,
-        haloColor: Colors.white,
-      ),
     ));
   }
 
@@ -196,9 +243,9 @@ class _NaverMapAppState extends State<NaverMapApp> {
         id: 'waypoint_marker_$i',
         position: waypoint,
         caption: NOverlayCaption(
-          text: '경유지 ${i + 1}',
-          textSize: 14.0,
-          color: Colors.blue,
+          text: '${i + 1}',
+          textSize: 12.0,
+          color: Colors.black,
           haloColor: Colors.white,
         ),
       ));
@@ -209,17 +256,21 @@ class _NaverMapAppState extends State<NaverMapApp> {
   Future<void> _getDirections() async {
     if (_mapController == null) return;
 
-    await _moveCameraToStart();  // 🚀 카메라 이동
+    await _moveCameraToStart();
 
     const clientId = 'rz7lsxe3oo';
     const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg';
-    final waypointsParam = _waypoints.map((point) => '${point.longitude},${point.latitude}').join('|');
+
+    final waypointsParam = _waypoints
+        .sublist(0, _waypoints.length - 1)
+        .map((point) => '${point.longitude},${point.latitude}')
+        .join('|');
 
     final url = 'https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving'
         '?start=${_start!.longitude},${_start!.latitude}'
         '&goal=${_start!.longitude},${_start!.latitude}'
         '&waypoints=$waypointsParam'
-        '&option=trafast';
+        '&option=traavoidcaronly';  // ✅ trafast → tracomfort로 변경
 
     final response = await http.get(Uri.parse(url), headers: {
       'X-NCP-APIGW-API-KEY-ID': clientId,
@@ -230,21 +281,13 @@ class _NaverMapAppState extends State<NaverMapApp> {
       final data = jsonDecode(response.body);
       _drawRoute(data);
 
-      // ✅ 전체 거리 정보 추출 및 표시
-      final totalDistance = data['route']['trafast'][0]['summary']['distance'];  // 전체 거리(m)
-      _showTotalDistance(totalDistance);  // 지도에 거리 표시
+      // ✅ trafast → tracomfort로 변경
+      final totalDistance = data['route']['traavoidcaronly'][0]['summary']['distance'];
+      _showTotalDistance(totalDistance);
 
-      // ✅ 경유지마다 마커 추가
       _addWaypointMarkers();
-    } else {
-      print('❗ Error: ${response.statusCode}');
-      print('❗ Response Body: ${response.body}');
-      throw Exception('자동차 도로 경로 요청에 실패했습니다.');
     }
   }
-
-
-
 
   @override
   void initState() {
@@ -257,85 +300,124 @@ class _NaverMapAppState extends State<NaverMapApp> {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(title: const Text('Naver Map Directions')),
-        body: Column(
+        body: Stack(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: _startController,
-                    decoration: const InputDecoration(labelText: '출발지 주소 입력'),
-                    onChanged: _getSuggestions, // 실시간 주소 검색
-                  ),
-                  if (_suggestedAddresses.isNotEmpty)
-                    Container(
-                      height: 200,
-                      color: Colors.white,
-                      child: ListView.builder(
-                        itemCount: _suggestedAddresses.length,
-                        itemBuilder: (context, index) {
-                          final place = _suggestedAddresses[index]['place']!;
-                          final address = _suggestedAddresses[index]['address']!;
-
-                          return ListTile(
-                            title: RichText(
-                              text: TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: place, // 장소 이름
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: '\n$address', // 도로명 주소
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey, // 회색 글씨
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            onTap: () => _onAddressSelected(address),
-                          );
-                        },
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _startController,
+                        decoration: const InputDecoration(labelText: '출발지 주소 입력'),
+                        onChanged: _getSuggestions, // 실시간 주소 검색
                       ),
-                    ),
-                  TextField(
-                    controller: _distanceController,
-                    decoration: const InputDecoration(labelText: '달릴 거리 입력 (미터)'),
-                    keyboardType: TextInputType.number,
+                      if (_suggestedAddresses.isNotEmpty)
+                        Container(
+                          height: 200,
+                          color: Colors.white,
+                          child: ListView.builder(
+                            itemCount: _suggestedAddresses.length,
+                            itemBuilder: (context, index) {
+                              final place = _suggestedAddresses[index]['place']!;
+                              final address = _suggestedAddresses[index]['address']!;
+
+                              return ListTile(
+                                title: RichText(
+                                  text: TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: place, // 장소 이름
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: '\n$address', // 도로명 주소
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey, // 회색 글씨
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                onTap: () => _onAddressSelected(address),
+                              );
+                            },
+                          ),
+                        ),
+                      TextField(
+                        controller: _distanceController,
+                        decoration: const InputDecoration(labelText: '달릴 거리 입력 (킬로미터)'),
+                        keyboardType: TextInputType.number,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          '계산된 총 거리: ${_calculatedDistance.toStringAsFixed(2)} km',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () async {
+                          FocusScope.of(context).unfocus();  // 🔥 키보드 내리기
+
+                          setState(() {
+                            _isLoading = true;  // 🔥 로딩 시작
+                          });
+
+                          try {
+                            final totalDistance = double.parse(_distanceController.text) * 1000;
+                            _start = await getLocation(_startController.text);
+
+                            final waypoints = await _generateWaypoints(_start!, totalDistance);
+                            _waypoints = await optimizeWaypoints(waypoints);
+
+                            await _getDirections();
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('오류 발생: $e')),
+                            );
+                          } finally {
+                            setState(() {
+                              _isLoading = false;  // 🔥 로딩 종료
+                            });
+                          }
+                        },
+                        child: const Text('길찾기'),
+                      ),
+                    ],
                   ),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final totalDistance = double.parse(_distanceController.text);
-                      _start = await getLocation(_startController.text);
-                      await _setupWaypoints(_start!, totalDistance);
-                      await _getDirections();
-                    },
-                    child: const Text('경로 표시'),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: NaverMap(
-                options: const NaverMapViewOptions(
-                  initialCameraPosition: NCameraPosition(
-                    target: NLatLng(37.5665, 126.9780),
-                    zoom: 10,
-                  ),
-                  locationButtonEnable: true,
                 ),
-                onMapReady: (controller) {
-                  _mapController = controller;
-                },
-              ),
+                Expanded(
+                  child: NaverMap(
+                    options: const NaverMapViewOptions(
+                      initialCameraPosition: NCameraPosition(
+                        target: NLatLng(37.5665, 126.9780),
+                        zoom: 10,
+                      ),
+                      locationButtonEnable: true,
+                    ),
+                    onMapReady: (controller) {
+                      _mapController = controller;
+                    },
+                  ),
+                ),
+              ],
             ),
+            if (_isLoading)  // 🔥 로딩 인디케이터
+              Container(
+                color: Colors.black45,
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
           ],
         ),
       ),
