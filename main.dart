@@ -27,9 +27,63 @@ class _NaverMapAppState extends State<NaverMapApp> {
   NaverMapController? _mapController;
   final TextEditingController _startController = TextEditingController();
   final TextEditingController _distanceController = TextEditingController();
+  List<Map<String, String>> _suggestedAddresses = [];
 
   NLatLng? _start;
   List<NLatLng> _waypoints = [];
+
+  // HTML 태그 제거 함수
+  String _removeHtmlTags(String text) {
+    final regex = RegExp(r'<[^>]*>');
+    return text.replaceAll(regex, '').trim();
+  }
+
+  // 자동완성 API 호출
+  Future<void> _getSuggestions(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _suggestedAddresses.clear();
+      });
+      return;
+    }
+
+    const clientId = 'SuuXcENvj8j80WSDEPRe'; // Naver Client ID
+    const clientSecret = '1KARXNrW1q'; // Naver Client Secret
+
+    final url =
+        'https://openapi.naver.com/v1/search/local.json?query=$query&display=5'; // Display is the number of results you want
+
+    final response = await http.get(Uri.parse(url), headers: {
+      'X-Naver-Client-Id': clientId,
+      'X-Naver-Client-Secret': clientSecret,
+    });
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final items = data['items'] as List<dynamic>;
+
+      setState(() {
+        _suggestedAddresses = items.map<Map<String, String>>((item) {
+          // 장소 이름과 도로명 주소를 함께 반환
+          return {
+            'place': _removeHtmlTags(item['title'] ?? '장소 이름 없음'), // HTML 태그 제거
+            'address': item['roadAddress'] ?? item['jibunAddress'] ?? '주소 정보 없음',
+          };
+        }).toList();
+      });
+    } else {
+      print('❗ Error: ${response.statusCode}');
+      print('❗ Response Body: ${response.body}');
+    }
+  }
+
+  // 선택한 주소 처리
+  void _onAddressSelected(String address) {
+    _startController.text = address;
+    setState(() {
+      _suggestedAddresses.clear();
+    });
+  }
 
   void _drawRoute(Map<String, dynamic> routeData) {
     if (_mapController == null) return;
@@ -212,7 +266,45 @@ class _NaverMapAppState extends State<NaverMapApp> {
                   TextField(
                     controller: _startController,
                     decoration: const InputDecoration(labelText: '출발지 주소 입력'),
+                    onChanged: _getSuggestions, // 실시간 주소 검색
                   ),
+                  if (_suggestedAddresses.isNotEmpty)
+                    Container(
+                      height: 200,
+                      color: Colors.white,
+                      child: ListView.builder(
+                        itemCount: _suggestedAddresses.length,
+                        itemBuilder: (context, index) {
+                          final place = _suggestedAddresses[index]['place']!;
+                          final address = _suggestedAddresses[index]['address']!;
+
+                          return ListTile(
+                            title: RichText(
+                              text: TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: place, // 장소 이름
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: '\n$address', // 도로명 주소
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey, // 회색 글씨
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            onTap: () => _onAddressSelected(address),
+                          );
+                        },
+                      ),
+                    ),
                   TextField(
                     controller: _distanceController,
                     decoration: const InputDecoration(labelText: '달릴 거리 입력 (미터)'),
