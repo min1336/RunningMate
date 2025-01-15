@@ -33,8 +33,38 @@ class _NaverMapAppState extends State<NaverMapApp> {
   List<NLatLng> _waypoints = [];
 
   double _calculatedDistance = 0.0;
+  bool _isLoading = false;
+  bool _isSearching = false;
 
-  bool _isLoading = false;  // 🔥 로딩 상태 추가
+  List<String> _searchHistory = [];  // 🔥 최근 검색 기록 추가
+
+  // 최근 검색 기록에 추가 (중복 방지, 최대 5개 유지)
+  void _addToSearchHistory(String address) {
+    setState(() {
+      _searchHistory.remove(address);  // 중복 제거
+      _searchHistory.insert(0, address);  // 최근 검색 추가
+      if (_searchHistory.length > 5) {
+        _searchHistory.removeLast();  // 최대 5개 유지
+        _isSearching = false;  // 🔥 입력 중단 시 검색 기록 숨김
+      }
+    });
+  }
+
+  // 🔥 입력 상태 감지
+  void _onFocusChange(bool hasFocus) {
+    setState(() {
+      _isSearching = hasFocus;
+    });
+  }
+
+  // ✅ 주소 자동완성 결과 선택 시 검색 기록에 추가
+  void _onAddressSelected(String address) {
+    _startController.text = address;
+    _addToSearchHistory(address);  // 🔥 검색 기록에 추가
+    setState(() {
+      _suggestedAddresses.clear();
+    });
+  }
 
   // HTML 태그 제거 함수
   String _removeHtmlTags(String text) {
@@ -79,14 +109,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
       print('❗ Error: ${response.statusCode}');
       print('❗ Response Body: ${response.body}');
     }
-  }
-
-  // 선택한 주소 처리
-  void _onAddressSelected(String address) {
-    _startController.text = address;
-    setState(() {
-      _suggestedAddresses.clear();
-    });
   }
 
   void _drawRoute(Map<String, dynamic> routeData) {
@@ -308,22 +330,53 @@ class _NaverMapAppState extends State<NaverMapApp> {
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
                     children: [
-                      TextField(
-                        controller: _startController,
-                        decoration: InputDecoration(
-                          labelText: '출발지 주소 입력',
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _startController.clear(); // 입력값 초기화
-                              setState(() {
-                                _suggestedAddresses.clear(); // 자동완성 리스트 초기화
-                              });
-                            },
+                      Focus(
+                        onFocusChange: _onFocusChange,  // 🔥 입력 상태 감지
+                        child: TextField(
+                          controller: _startController,
+                          decoration: InputDecoration(
+                            labelText: '출발지 주소 입력',
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _startController.clear();
+                                setState(() {
+                                  _suggestedAddresses.clear();
+                                });
+                              },
+                            ),
                           ),
+                          onChanged: _getSuggestions,
                         ),
-                        onChanged: _getSuggestions, // 실시간 주소 검색
                       ),
+                      // 🔥 입력 중일 때만 최근 검색 기록 표시
+                      if (_isSearching && _searchHistory.isNotEmpty)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                '최근 검색 기록',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            Container(
+                              height: 100,
+                              child: ListView.builder(
+                                itemCount: _searchHistory.length,
+                                itemBuilder: (context, index) {
+                                  final historyItem = _searchHistory[index];
+                                  return ListTile(
+                                    title: Text(historyItem),
+                                    leading: const Icon(Icons.history),
+                                    onTap: () => _onAddressSelected(historyItem),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       if (_suggestedAddresses.isNotEmpty)
                         Container(
                           height: 200,
@@ -389,8 +442,12 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
                             _start = await getLocation(_startController.text);
 
+                            _addToSearchHistory(_startController.text);  // 🔥 검색 기록에 추가
+
                             int retryCount = 0;
-                            const int maxRetries = 10;  // 🔥 재탐색 횟수 증가
+                            const int maxRetries = 10;  // 🔥 최대 재탐색 횟수
+
+                            bool isRouteFound = false;  // ✅ 경로 성공 여부
 
                             while (retryCount < maxRetries) {
                               // 🔄 경유지 생성 시 시드 변경 → 비슷한 경로 방지
@@ -402,9 +459,9 @@ class _NaverMapAppState extends State<NaverMapApp> {
                               // 🔎 입력 거리와 계산된 거리 비교
                               double difference = (_calculatedDistance * 1000 - totalDistance).abs() / 1000;
 
-                              if (difference <= 2.99) {  // 🔥 오차 허용범위 2.99km로 조정
-                                // ✅ 오차 이내 → 반복 종료
+                              if (difference <= 1.3) {  // ✅ 오차 허용범위
                                 print('✅ 최적 경로 찾음! 오차: ${difference.toStringAsFixed(2)} km');
+                                isRouteFound = true;
                                 break;
                               } else {
                                 retryCount++;
@@ -412,9 +469,10 @@ class _NaverMapAppState extends State<NaverMapApp> {
                               }
                             }
 
-                            if (retryCount == maxRetries) {
+                            if (!isRouteFound) {
+                              // ❗ 경로 찾기 실패 → 사용자 알림 및 버튼 활성화
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('최적의 경로를 찾지 못했습니다.')),
+                                const SnackBar(content: Text('❗ 최적의 경로를 찾지 못했습니다.\n다시 시도해 주세요.')),
                               );
                             }
                           } catch (e) {
@@ -423,7 +481,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             );
                           } finally {
                             setState(() {
-                              _isLoading = false;  // 🔥 로딩 종료
+                              _isLoading = false;  // 🔥 로딩 종료 → 버튼 활성화
                             });
                           }
                         },
