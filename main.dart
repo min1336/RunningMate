@@ -108,14 +108,14 @@ class _NaverMapAppState extends State<NaverMapApp> {
     ));
   }
 
-  Future<List<NLatLng>> _generateWaypoints(NLatLng start, double totalDistance) async {
-    const int numberOfWaypoints = 5;  // 경유지 개수
-    final Random random = Random();
+  Future<List<NLatLng>> _generateWaypoints(NLatLng start, double totalDistance, {int? seed}) async {
+    const int numberOfWaypoints = 5;
+    final Random random = seed != null ? Random(seed) : Random();  // 🔥 시드 추가
     final List<NLatLng> waypoints = [];
 
     for (int i = 0; i < numberOfWaypoints; i++) {
       final double angle = random.nextDouble() * 2 * pi;
-      final double distance = (totalDistance / numberOfWaypoints) * random.nextDouble();
+      final double distance = (totalDistance / numberOfWaypoints) * (0.8 + random.nextDouble() * 0.4);  // 🔥 거리 범위 다양화
       final NLatLng waypoint = await _calculateWaypoint(start, distance, angle);
       waypoints.add(waypoint);
     }
@@ -299,7 +299,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        appBar: AppBar(title: const Text('Naver Map Directions')),
+        appBar: AppBar(title: const Text('Running Mate')),
         body: Stack(
           children: [
             Column(
@@ -310,7 +310,18 @@ class _NaverMapAppState extends State<NaverMapApp> {
                     children: [
                       TextField(
                         controller: _startController,
-                        decoration: const InputDecoration(labelText: '출발지 주소 입력'),
+                        decoration: InputDecoration(
+                          labelText: '출발지 주소 입력',
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _startController.clear(); // 입력값 초기화
+                              setState(() {
+                                _suggestedAddresses.clear(); // 자동완성 리스트 초기화
+                              });
+                            },
+                          ),
+                        ),
                         onChanged: _getSuggestions, // 실시간 주소 검색
                       ),
                       if (_suggestedAddresses.isNotEmpty)
@@ -374,12 +385,38 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
                           try {
                             final totalDistance = double.parse(_distanceController.text) * 1000;
+                            final halfDistance = totalDistance / 2;
+
                             _start = await getLocation(_startController.text);
 
-                            final waypoints = await _generateWaypoints(_start!, totalDistance);
-                            _waypoints = await optimizeWaypoints(waypoints);
+                            int retryCount = 0;
+                            const int maxRetries = 10;  // 🔥 재탐색 횟수 증가
 
-                            await _getDirections();
+                            while (retryCount < maxRetries) {
+                              // 🔄 경유지 생성 시 시드 변경 → 비슷한 경로 방지
+                              final waypoints = await _generateWaypoints(_start!, halfDistance, seed: DateTime.now().millisecondsSinceEpoch);
+                              _waypoints = await optimizeWaypoints(waypoints);
+
+                              await _getDirections();
+
+                              // 🔎 입력 거리와 계산된 거리 비교
+                              double difference = (_calculatedDistance * 1000 - totalDistance).abs() / 1000;
+
+                              if (difference <= 2.99) {  // 🔥 오차 허용범위 2.99km로 조정
+                                // ✅ 오차 이내 → 반복 종료
+                                print('✅ 최적 경로 찾음! 오차: ${difference.toStringAsFixed(2)} km');
+                                break;
+                              } else {
+                                retryCount++;
+                                print('🔄 경로 재탐색 중... ($retryCount/$maxRetries), 오차: ${difference.toStringAsFixed(2)} km');
+                              }
+                            }
+
+                            if (retryCount == maxRetries) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('최적의 경로를 찾지 못했습니다.')),
+                              );
+                            }
                           } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('오류 발생: $e')),
