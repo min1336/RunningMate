@@ -35,6 +35,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
   double _calculatedDistance = 0.0;
   bool _isLoading = false;
   bool _isSearching = false;
+  double? _selectedDistance; // 선택한 거리 값을 저장하는 변수
+
 
   List<String> _searchHistory = [];  // 🔥 최근 검색 기록 추가
 
@@ -414,11 +416,23 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             },
                           ),
                         ),
-                      TextField(
-                        controller: _distanceController,
-                        decoration: const InputDecoration(labelText: '달릴 거리 입력 (킬로미터)'),
-                        keyboardType: TextInputType.number,
+                      DropdownButton<double>(
+                        value: _selectedDistance,
+                        hint: const Text('달릴 거리 선택 (km)'),
+                        items: List.generate(10, (index) {
+                          final distance = (index + 1).toDouble();
+                          return DropdownMenuItem<double>(
+                            value: distance,
+                            child: Text('${distance.toStringAsFixed(1)} km'),
+                          );
+                        }),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedDistance = value;
+                          });
+                        },
                       ),
+
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8.0),
                         child: Text(
@@ -437,7 +451,14 @@ class _NaverMapAppState extends State<NaverMapApp> {
                           });
 
                           try {
-                            final totalDistance = double.parse(_distanceController.text) * 1000;
+                            if (_selectedDistance == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('달릴 거리를 선택해 주세요.')),
+                              );
+                              return;
+                            }
+                            final totalDistance = _selectedDistance! * 1000;
+
                             final halfDistance = totalDistance / 2;
 
                             _start = await getLocation(_startController.text);
