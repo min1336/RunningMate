@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-//main 실행
+//메인
 void main() async {
   await _initialize();
   runApp(const NaverMapApp());
@@ -32,8 +32,9 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
   NLatLng? _start;
   List<NLatLng> _waypoints = [];
+  Set<NLatLng> _visitedCoordinates = {}; // 지나온 경로를 저장할 Set
 
-  //위치(주소) 정보 얻기
+  //위치(주소)정보 받아오기
   Future<NLatLng> getLocation(String address) async {
     const clientId = 'rz7lsxe3oo';
     const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg';
@@ -57,45 +58,191 @@ class _NaverMapAppState extends State<NaverMapApp> {
     }
   }
 
-  //거리 정보 얻기
+  //경로 설정 함수
   Future<void> _getDirections() async {
-    if (_mapController == null) return;
-
-    await _moveCameraToStart();  // 🚀 카메라 이동
+    if (_mapController == null || _start == null) return;
 
     const clientId = 'rz7lsxe3oo';
     const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg';
-    final waypointsParam = _waypoints.map((point) => '${point.longitude},${point.latitude}').join('|');
 
-    final url = 'https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving'
-        '?start=${_start!.longitude},${_start!.latitude}'
-        '&goal=${_start!.longitude},${_start!.latitude}'
-        '&waypoints=$waypointsParam'
-        '&option=trafast';
+    final userDistance = double.parse(_distanceController.text); // 입력 거리 (m)
+    const tolerance = 200; // 허용 오차 범위 (±200m)
 
-    final response = await http.get(Uri.parse(url), headers: {
-      'X-NCP-APIGW-API-KEY-ID': clientId,
-      'X-NCP-APIGW-API-KEY': clientSecret,
-    });
+    bool isWithinTolerance = false;
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      _drawRoute(data);
+    while (!isWithinTolerance) {
+      // 경유지 설정
+      await _setupWaypoints(_start!, userDistance);
 
-      //전체 거리 정보 추출 및 표시
-      final totalDistance = data['route']['trafast'][0]['summary']['distance'];  // 전체 거리(m)
-      _showTotalDistance(totalDistance);  // 지도에 거리 표시
+      // 경유지 최적화
+      await _optimizeRoute(_waypoints);
 
-      //경유지마다 마커 추가
-      _addWaypointMarkers();
-    } else {
-      print('❗ Error: ${response.statusCode}');
-      print('❗ Response Body: ${response.body}');
-      throw Exception('자동차 도로 경로 요청에 실패했습니다.');
+      // 경유지 파라미터 생성
+      final waypointsParam = _waypoints.map((point) => '${point.longitude},${point.latitude}').join('|');
+
+      // Directions API 호출
+      final url = 'https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/driving'
+          '?start=${_start!.longitude},${_start!.latitude}'
+          '&goal=${_start!.longitude},${_start!.latitude}'
+          '&waypoints=$waypointsParam'
+          '&option=trafast';
+
+      final response = await http.get(Uri.parse(url), headers: {
+        'X-NCP-APIGW-API-KEY-ID': clientId,
+        'X-NCP-APIGW-API-KEY': clientSecret,
+      });
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // 실제 경로 거리(m)
+        final totalDistance = data['route']['trafast'][0]['summary']['distance'];
+
+        if ((totalDistance >= (userDistance - tolerance)) && (totalDistance <= (userDistance + tolerance))) {
+          isWithinTolerance = true; // 허용 범위 내면 루프 종료
+          _drawRoute(data); // 경로 그리기
+          _showTotalDistance(totalDistance); // 지도에 총 거리 표시
+          _addWaypointMarkers(); // 경유지 마커 추가
+          _moveCameraToStart(); //카메라 추적
+          print('✅ 경로 생성 성공: 실제 거리 $totalDistance m');
+        } else {
+          print('❗ 경로 조정 필요: 실제 거리 $totalDistance m');
+          await _adjustWaypointsSmartly(data, userDistance, tolerance); // 스마트 경유지 조정
+        }
+      } else {
+        print('❗ Error: ${response.statusCode}');
+        print('❗ Response Body: ${response.body}');
+        throw Exception('자동차 도로 경로 요청에 실패했습니다.');
+      }
     }
   }
 
-  //경로 그리기
+  //경로를 부드럽게 만들기 위한 최적화 함수
+  Future<void> _optimizeRoute(List<NLatLng> waypoints) async {
+    // 1. 경유지 개수가 너무 많으면, 적당히 줄여서 경로를 직선적으로 만듦
+    if (waypoints.length > 5) {
+      // 첫 번째와 마지막 경유지만 남기고 중간 경유지 제거
+      final optimizedWaypoints = [waypoints.first, waypoints.last];
+      setState(() {
+        _waypoints = optimizedWaypoints;
+      });
+      print("경유지 최적화: 경유지 수를 줄였습니다.");
+    } else {
+      // 2. 경유지 간의 위치가 너무 멀거나, 경로 상에서 부자연스러울 경우 보간법 적용
+      final optimizedWaypoints = _applyLinearInterpolation(waypoints);
+      setState(() {
+        _waypoints = optimizedWaypoints;
+      });
+      print("경유지 최적화: 경로를 부드럽게 연결했습니다.");
+    }
+  }
+
+  //경유지 간 보간법을 적용하는 함수 (Linear interpolation)
+  List<NLatLng> _applyLinearInterpolation(List<NLatLng> waypoints) {
+    List<NLatLng> optimizedWaypoints = [];
+    for (int i = 0; i < waypoints.length - 1; i++) {
+      optimizedWaypoints.add(waypoints[i]);
+      // 경유지 간 거리가 너무 멀면 중간에 추가 지점을 넣어줌
+      final start = waypoints[i];
+      final end = waypoints[i + 1];
+      final distance = _calculateDistance(start, end);
+
+      if (distance > 1000) {  // 1km 이상 간격이면 중간 지점 추가
+        final midPoint = _getMidPoint(start, end);
+        optimizedWaypoints.add(midPoint);
+      }
+    }
+    optimizedWaypoints.add(waypoints.last);
+    return optimizedWaypoints;
+  }
+
+  //두 지점의 중간 지점을 계산하는 함수
+  NLatLng _getMidPoint(NLatLng start, NLatLng end) {
+    final lat = (start.latitude + end.latitude) / 2;
+    final lon = (start.longitude + end.longitude) / 2;
+    return NLatLng(lat, lon);
+  }
+
+  //경유지 설정 함수
+  Future<void> _setupWaypoints(NLatLng startLatLng, double totalDistance) async {
+    List<NLatLng> waypoints = [];
+    double distancePerSegment = (totalDistance / 2.0) / 4.0;
+
+    NLatLng currentLocation = startLatLng;
+    Random random = Random();
+
+    for (int i = 1; i <= 3; i++) {
+      double angle = (random.nextDouble() * 2 * pi) / i;  // 점차 부드럽게
+      currentLocation = await _calculateWaypoint(currentLocation, distancePerSegment, angle);
+      // 지나온 경로와 겹치지 않는 경유지만 추가
+      if (!_visitedCoordinates.contains(currentLocation)) {
+        waypoints.add(currentLocation);
+        _visitedCoordinates.add(currentLocation); // 지나온 경로에 추가
+      }
+    }
+
+    _waypoints = waypoints;
+  }
+
+  //경유지 초기 설정
+  Future<NLatLng> _calculateWaypoint(NLatLng start, double distance, double angle) async {
+    const earthRadius = 6371000.0;
+    final deltaLat = (distance / earthRadius) * cos(angle);
+    final deltaLon = (distance / (earthRadius * cos(start.latitude * pi / 180))) * sin(angle);
+
+    final newLat = start.latitude + (deltaLat * 180 / pi);
+    final newLon = start.longitude + (deltaLon * 180 / pi);
+
+    return NLatLng(newLat, newLon);
+  }
+
+  //경유지 수정
+  Future<void> _adjustWaypointsSmartly(Map<String, dynamic> routeData, double userDistance, final tolerance) async {
+    final route = routeData['route']['trafast'][0];
+    final path = route['path'] as List<dynamic>;
+
+    // 경로 상의 모든 좌표 리스트 (NLatLng)
+    final List<NLatLng> routeCoordinates = path.map((coord) => NLatLng(coord[1], coord[0])).toList();
+
+    // 각 경유지를 경로에 더 가까운 점으로 이동
+    for (int i = 0; i < _waypoints.length; i++) {
+      final waypoint = _waypoints[i];
+      double closestDistance = double.infinity;
+      NLatLng? closestPoint;
+
+      // 경로 상의 각 점과 현재 경유지 간 거리 계산
+      for (final routePoint in routeCoordinates) {
+        final distance = _calculateDistance(waypoint, routePoint);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestPoint = routePoint;
+        }
+      }
+
+      // 가장 가까운 경로 상의 점으로 경유지 이동
+      if (closestPoint != null) {
+        _waypoints[i] = closestPoint;
+      }
+    }
+  }
+
+  //거리 계산 함수
+  double _calculateDistance(NLatLng point1, NLatLng point2) {
+    const earthRadius = 6371000.0; // 지구 반지름 (미터)
+    final dLat = (point2.latitude - point1.latitude) * pi / 180.0;
+    final dLon = (point2.longitude - point1.longitude) * pi / 180.0;
+
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(point1.latitude * pi / 180.0) *
+            cos(point2.latitude * pi / 180.0) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c; // 거리 (미터)
+  }
+
+  //경로 그리는 함수
   void _drawRoute(Map<String, dynamic> routeData) {
     if (_mapController == null) return;
 
@@ -115,51 +262,10 @@ class _NaverMapAppState extends State<NaverMapApp> {
     ));
   }
 
-  //경유지 설정 함수
-  Future<void> _setupWaypoints(NLatLng startLatLng, double totalDistance) async {
-    List<NLatLng> waypoints = [];
-    double distancePerSegment = (totalDistance / 2.0) / 4.0;
-
-    NLatLng currentLocation = startLatLng;
-    Random random = Random();
-
-    for (int i = 1; i <= 3; i++) {
-      double angle = (random.nextDouble() * 2 * pi) / i;  // 점차 부드럽게
-      currentLocation = await _calculateWaypoint(currentLocation, distancePerSegment, angle);
-      waypoints.add(currentLocation);
-    }
-
-    _waypoints = waypoints;
-  }
-
-  //경유지 위치 계산 함수
-  Future<NLatLng> _calculateWaypoint(NLatLng start, double distance, double angle) async {
-    const earthRadius = 6371000.0;
-    final deltaLat = (distance / earthRadius) * cos(angle);
-    final deltaLon = (distance / (earthRadius * cos(start.latitude * pi / 180))) * sin(angle);
-
-    final newLat = start.latitude + (deltaLat * 180 / pi);
-    final newLon = start.longitude + (deltaLon * 180 / pi);
-
-    return NLatLng(newLat, newLon);
-  }
-
-  // 지도 위에 총 거리(km) 표시
-  void _showTotalDistance(int distanceInMeters) {
-    if (_mapController == null || _start == null) return;
-
-    final distanceInKm = (distanceInMeters / 1000).toStringAsFixed(2);
-
-    _mapController!.addOverlay(NMarker(
-      id: 'distance_marker',
-      position: _start!,
-      caption: NOverlayCaption(
-        text: '총 거리: $distanceInKm km',
-        textSize: 14.0,
-        color: Colors.black,
-        haloColor: Colors.white,
-      ),
-    ));
+  //주소 자동완성 HTML 태그 제거 함수
+  String _removeHtmlTags(String text) {
+    final regex = RegExp(r'<[^>]*>');
+    return text.replaceAll(regex, '').trim();
   }
 
   //주소 자동완성
@@ -201,7 +307,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
     }
   }
 
-  //주소누르면 자동완성
+  //주소누르면 자동완성 도움
   void _onAddressSelected(String address) {
     _startController.text = address;
     setState(() {
@@ -209,11 +315,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
     });
   }
 
-  //주소 자동완성에 HTML 태그 포함되는 문제 해결
-  String _removeHtmlTags(String text) {
-    final regex = RegExp(r'<[^>]*>');
-    return text.replaceAll(regex, '').trim();
-  }
 
   // 시작 위치로 카메라 이동
   Future<void> _moveCameraToStart() async {
@@ -227,7 +328,26 @@ class _NaverMapAppState extends State<NaverMapApp> {
     }
   }
 
-//경유지마다 마커 추가
+  //지도 위에 총 거리(km) 표시
+  void _showTotalDistance(int distanceInMeters) {
+    if (_mapController == null || _start == null) return;
+
+    final distanceInKm = (distanceInMeters / 1000).toStringAsFixed(2);
+
+    //NMarker의 caption 속성 활용
+    _mapController!.addOverlay(NMarker(
+      id: 'distance_marker',
+      position: _start!,
+      caption: NOverlayCaption(
+        text: '총 거리: $distanceInKm km',
+        textSize: 14.0,
+        color: Colors.black,
+        haloColor: Colors.white,
+      ),
+    ));
+  }
+
+  //경유지마다 마커 추가
   void _addWaypointMarkers() {
     if (_mapController == null) return;
 
@@ -255,7 +375,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
     _permission();
   }
 
-  //UI
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -347,7 +466,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
   }
 }
 
-//위치 권한 함수
 void _permission() async {
   var status = await Permission.location.status;
   if (!status.isGranted) {
