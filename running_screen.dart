@@ -162,20 +162,24 @@ class _RunningScreenState extends State<RunningScreen> {
 
               // 🔥 실제 추천 받은 도로 경로 지도에 그리기
               _mapController!.addOverlay(
-                NPolylineOverlay(
+                NPathOverlay(
                   id: 'recommended_road',
                   coords: widget.roadPath,
                   width: 6,
                   color: Colors.blue,
+                  patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.jpg"),
+                  patternInterval: 20,
                 ),
               );
 
               _mapController!.addOverlay(
-                NPolylineOverlay(
+                NPathOverlay(
                   id: 'recommended_road2',
                   coords: widget.roadPath2,
                   width: 6,
                   color: Colors.blue,
+                  patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.jpg"),
+                  patternInterval: 20,
                 ),
               );
             },
