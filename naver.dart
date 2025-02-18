@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http; // HTTP 요청 처리
 import 'package:flutter/material.dart'; // Flutter UI 구성
 import 'package:flutter_naver_map/flutter_naver_map.dart'; // 네이버 지도 SDK 사용
 import 'package:permission_handler/permission_handler.dart';
-import 'package:run1230/running_screen.dart'; // 권한 요청 관리
+import 'package:run1220/running_screen.dart';
 import 'countdown.dart'; // 🔥 countdown.dart 임포트
 
 class NaverMapApp extends StatefulWidget {
@@ -24,7 +24,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
   static const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg';
 
   List<NLatLng> _routePath = []; // 🔥 실제 도로 경로 데이터를 저장할 변수 추가
-  List<NLatLng> _routePath2 = []; // 🔥 실제 도로 경로 데이터를 저장할 변수 추가
 
   NLatLng? _start; // 출발지 좌표
   List<NLatLng> _waypoints = []; // 경유지 좌표 목록
@@ -86,24 +85,16 @@ class _NaverMapAppState extends State<NaverMapApp> {
   void _drawRoute(Map<String, dynamic> routeData) {
     if (_mapController == null) return; // 지도 컨트롤러가 초기화되지 않았으면 반환
 
-    final List<NLatLng> fullPath = []; // 오는 길 좌표
-    final List<NLatLng> returnPath = []; // 가는 길 좌표
+    final List<NLatLng> polylineCoordinates = []; // 경로 좌표 목록 초기화
     final route = routeData['route']['traavoidcaronly'][0]; // 경로 데이터 추출
     final path = route['path']; // 경로의 경로점 목록
 
-    // 경로를 반환 경로와 나머지로 분리
-    final int splitIndex = (path.length / 2).floor(); // 반환 구간 시작점 계산
-    for (int i = 0; i < path.length; i++) {
-      if (i < splitIndex) {
-        fullPath.add(NLatLng(path[i][1], path[i][0])); // 반환 경로 이전까지는 fullRoute
-      } else {
-        returnPath.add(NLatLng(path[i][1], path[i][0])); // 반환 경로 이후는 returnRoute
-      }
+    for (var coord in path) { // 경로점 순회
+      polylineCoordinates.add(NLatLng(coord[1], coord[0])); // 좌표 추가
     }
 
     setState(() {
-      _routePath = fullPath; // 🔥 경로 데이터를 변수에 저장
-      _routePath2 = returnPath;
+      _routePath = polylineCoordinates; // 🔥 경로 데이터를 변수에 저장
     });
 
     _mapController!.addOverlay(NPathOverlay(
@@ -111,17 +102,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
       color: Colors.lightGreen, // 경로 색상
       width: 8, // 경로 선 두께
       coords: _routePath, // 경로 좌표
-      patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.jpg"),
-      patternInterval: 20,
-    ));
-
-    // 가는 길 (backwardPath) 오버레이 추가 (색상 또는 위치를 약간 다르게 설정)
-    _mapController!.addOverlay(NPathOverlay(
-      id: 'return_route',
-      color: Colors.lightGreen,
-      width: 8,
-      coords: _routePath2,
-      patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.jpg"),
+      patternImage: NOverlayImage.fromAssetImage("assets/images/pattern_white.png"),
       patternInterval: 20,
     ));
   }
@@ -461,15 +442,15 @@ class _NaverMapAppState extends State<NaverMapApp> {
                               switch (_selectedDistance) {
                                 case '초급':
                                   minDistance = 500; // 500m
-                                  maxDistance = 3000; // 3km
+                                  maxDistance = 2500; // 2.5km
                                   break;
                                 case '중급':
-                                  minDistance = 3000; // 3km
-                                  maxDistance = 6000; // 6km
+                                  minDistance = 2500; // 2.5km
+                                  maxDistance = 4500; // 4.5km
                                   break;
                                 case '고급':
-                                  minDistance = 6000; // 6km
-                                  maxDistance = 10000; // 10km
+                                  minDistance = 4500; // 4.5km
+                                  maxDistance = 7000; // 7km
                                   break;
                                 default:
                                   minDistance = 0;
@@ -541,11 +522,10 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) =>
-                                            RunningScreen(
-                                              roadPath: _routePath,
-                                              roadPath2: _routePath2,
-                                              startLocation: _start!,
-                                            ),
+                                              RunningScreen(
+                                                roadPath: _routePath,
+                                                startLocation: _start!,
+                                              ),
                                         ),
                                       );
                                     },
