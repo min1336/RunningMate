@@ -1,14 +1,18 @@
 import 'dart:async';
-import 'dart:math'; // 수학적 계산 (랜덤 값, 삼각 함수 등)
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:run1220/main.dart';
-
+import 'package:screenshot/screenshot.dart';
+import 'Calendar.dart';
+import 'package:run1230/main.dart';
 
 class RunningScreen extends StatefulWidget {
-  final List<NLatLng> roadPath;
-  final NLatLng startLocation;
+  final List<NLatLng> roadPath; // 네이버 길찾기 API에서 받은 실제 도로 경로
+  final NLatLng startLocation; // 출발지 좌표
 
   const RunningScreen({
     super.key,
@@ -21,18 +25,23 @@ class RunningScreen extends StatefulWidget {
 }
 
 class _RunningScreenState extends State<RunningScreen> {
+  final ScreenshotController _screenshotController = ScreenshotController();
   NaverMapController? _mapController;
-  Position? _currentPosition;
   bool _isRunning = false;
   bool _isPaused = false;
   Timer? _timer;
-  StreamSubscription<Position>? _positionStream;
   Timer? _stopTimer;
   Timer? _stopHoldTimer;
-  int _elapsedTime = 0;
-  double _totalDistance = 0.0;
+  StreamSubscription<Position>? _positionStream; // 🔥 위치 스트림 변수 추가
+  int _elapsedTime = 0; // 초 단위
+  double _totalDistance = 0.0; // 실제 이동 거리 (m)
   double _caloriesBurned = 0.0;
   Position? _lastPosition;
+  NMarker? _userLocationMarker;
+  bool _isTimerRunning = false;
+  final List<Position> _recentPositions = [];
+  // 지나온 경로 저장용 리스트
+  final List<NLatLng> _traveledPath = [];
 
   static const double MIN_DISTANCE_THRESHOLD = 1.0; // 1m 이하 이동 무시
   static const double MIN_SPEED_THRESHOLD = 0.5; // 0.5m/s 이하 속도 무시
@@ -41,13 +50,55 @@ class _RunningScreenState extends State<RunningScreen> {
   @override
   void initState() {
     super.initState();
-    _getCurrentLocationAndFollowUser(); // 내 위치 버튼과 동일한 동작 실행
+    _getCurrentLocation();
   }
 
-// 사용자 위치를 표시할 마커 저장
-  NMarker? _userLocationMarker;
+  Future<String?> _captureMapScreenshot() async {
+    try {
+      final now = DateTime.now();
+      final dateString = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour}-${now.minute}-${now.second}";
+      final directory = await getApplicationDocumentsDirectory();
 
-  Future<void> _getCurrentLocationAndFollowUser() async {
+      // 디렉토리가 올바르게 생성되었는지 확인
+      if (!directory.existsSync()) {
+        directory.createSync(recursive: true);
+      }
+
+      // ScreenshotController 초기화 확인
+      final imagePath = await _screenshotController.captureAndSave(directory.path, fileName: "run_$dateString.png");
+
+      if (imagePath != null) {
+        print("캡처 성공: $imagePath");
+
+        // 정보 저장
+        final summaryData = {
+          "distance": "${(_totalDistance / 1000).toStringAsFixed(2)} km",
+          "time": "${_elapsedTime ~/ 60}분 ${_elapsedTime % 60}초",
+          //"pace": "${_calculatePace()} /km",
+          "calories": "${_caloriesBurned.toStringAsFixed(1)} kcal"
+        };
+
+        final summaryFile = File("${directory.path}/run_$dateString.json");
+        await summaryFile.writeAsString(jsonEncode(summaryData));
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const CalendarScreen()),
+          );
+        }
+      } else {
+        print('캡처 실패: 반환된 경로가 null입니다.');
+      }
+      return imagePath;
+  } catch (e) {
+      print('경로 캡처 실패: $e');
+      return null;
+    }
+  }
+
+  // 현재 위치 가져오기
+  Future<void> _getCurrentLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
 
@@ -125,14 +176,7 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
-
-
-
-
-
-
-  bool _isTimerRunning = false; // ✅ 타이머 실행 여부 확인용 변수
-
+  // 타이머 시작 (🔥 중복 실행 방지)
   void _startTimer() {
     if (_isTimerRunning) return;
 
@@ -150,7 +194,7 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
-// Navigator 이동 함수
+  // Navigator 이동 함수
   void _navigateToMain() {
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
@@ -160,19 +204,13 @@ class _RunningScreenState extends State<RunningScreen> {
     }
   }
 
-  bool _isStopping = false; // 정지 대기 상태 여부
-
-  List<Position> _recentPositions = [];
-  // 지나온 경로 저장용 리스트
-  List<NLatLng> _traveledPath = [];
-
-
+  // 위치 추적 시작 (🔥 실제 이동한 거리만 반영)
   void _startTracking() {
-    _positionStream?.cancel();
+    _positionStream?.cancel(); // 🔥 기존 스트림이 있다면 해제
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.bestForNavigation),
     ).listen((Position position) {
-      if (!mounted || !_isRunning || _isPaused) return;
+      if (mounted && _isRunning && !_isPaused) return; // 🔥 mounted 체크 추가
       if (position.accuracy > MIN_ACCURACY_THRESHOLD) return;
 
       if (_lastPosition != null) {
@@ -213,7 +251,7 @@ class _RunningScreenState extends State<RunningScreen> {
             _recentPositions.length
             : 0;
 
-// 평균 속도 및 위치 변화량 검사
+        // 평균 속도 및 위치 변화량 검사
         if (avgSpeed < MIN_SPEED_THRESHOLD &&
             _calculateDistanceBetween(
               NLatLng(_recentPositions.first.latitude, _recentPositions.first.longitude),
@@ -231,8 +269,6 @@ class _RunningScreenState extends State<RunningScreen> {
           _stopTimer = null;
         }
 
-
-
         setState(() {
           _totalDistance += distance;
           _lastPosition = position;
@@ -243,7 +279,7 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
-// 지나온 경로 오버레이 업데이트
+  // 지나온 경로 오버레이 업데이트
   void _updateTraveledPathOverlay() {
     if (_mapController == null || _traveledPath.length < 2) return;
 
@@ -258,20 +294,6 @@ class _RunningScreenState extends State<RunningScreen> {
 
     _mapController!.addOverlay(traveledOverlay);
   }
-
-// 두 좌표 간 거리 계산
-  double _calculateDistanceBetween(NLatLng p1, NLatLng p2) {
-    const earthRadius = 6371000.0;
-    final dLat = (p2.latitude - p1.latitude) * (pi / 180);
-    final dLon = (p2.longitude - p1.longitude) * (pi / 180);
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(p1.latitude * (pi / 180)) * cos(p2.latitude * (pi / 180)) *
-            sin(dLon / 2) * sin(dLon / 2);
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return earthRadius * c;
-  }
-
-
 
   String _formatTime(int seconds) {
     int minutes = seconds ~/ 60;
@@ -297,17 +319,29 @@ class _RunningScreenState extends State<RunningScreen> {
     return met * weight * timeInHours; // 🔥 분 단위까지 고려한 보정
   }
 
+  // 두 좌표 간 거리 계산
+  double _calculateDistanceBetween(NLatLng p1, NLatLng p2) {
+    const earthRadius = 6371000.0;
+    final dLat = (p2.latitude - p1.latitude) * (pi / 180);
+    final dLon = (p2.longitude - p1.longitude) * (pi / 180);
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(p1.latitude * (pi / 180)) * cos(p2.latitude * (pi / 180)) *
+            sin(dLon / 2) * sin(dLon / 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  // 달리기 시작
   void _startRun() {
     setState(() {
       _isRunning = true;
       _isPaused = false;
     });
-
-    _startTimer(); // ✅ 타이머 실행
-    _startTracking(); // ✅ GPS 위치 트래킹 다시 시작
+    _startTimer();
+    _startTracking();
   }
 
-
+  // 일시 정지
   void _pauseRun() {
     setState(() {
       _isRunning = false;
@@ -315,24 +349,22 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
+  // 종료 (🔥 타이머 & 위치 스트림 해제)
   void _stopRun() {
     setState(() {
       _isRunning = false;
       _isPaused = false;
     });
-
-    _timer?.cancel(); // ✅ 타이머 정지
-    _isTimerRunning = false; // ✅ 타이머 실행 상태 업데이트
-    _positionStream?.cancel(); // ✅ GPS 위치 업데이트 정지
-    _stopTimer?.cancel(); // ✅ 3초 후 정지 타이머 취소
+    _timer?.cancel();
+    _positionStream?.cancel(); // 🔥 위치 스트림 해제
+    _isTimerRunning = false;
+    _stopTimer?.cancel();
   }
-
-
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _positionStream?.cancel();
+    _timer?.cancel(); // 🔥 타이머 해제
+    _positionStream?.cancel(); // 🔥 위치 스트림 해제
     _stopTimer?.cancel();
     super.dispose();
   }
@@ -343,7 +375,9 @@ class _RunningScreenState extends State<RunningScreen> {
       appBar: AppBar(title: const Text("달리기 진행 중")),
       body: Stack(
         children: [
-          NaverMap(
+        Screenshot(  // ✅ 캡처 가능하도록 감싸기
+          controller: _screenshotController,
+          child: NaverMap(
             options: NaverMapViewOptions(
               initialCameraPosition: NCameraPosition(
                 target: widget.startLocation,
@@ -353,6 +387,8 @@ class _RunningScreenState extends State<RunningScreen> {
             ),
             onMapReady: (controller) {
               _mapController = controller;
+
+              // 🔥 실제 추천 받은 도로 경로 지도에 그리기
               _mapController!.addOverlay(
                 NPathOverlay(
                   id: 'recommended_road',
@@ -361,14 +397,15 @@ class _RunningScreenState extends State<RunningScreen> {
                   color: Color(0xFFD32F2F),
                   outlineWidth: 2,
                   outlineColor: Colors.white,
-                  patternImage: NOverlayImage.fromAssetImage("assets/images/pattern_white.png"),
+                  patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.jpg"),
                   patternInterval: 30,
                 ),
               );
             },
           ),
+      ),
 
-// 정보 표시 박스 - 버튼 포함
+          // UI 오버레이
           Positioned(
             bottom: 16,
             left: 16,
@@ -389,7 +426,7 @@ class _RunningScreenState extends State<RunningScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 거리, 시간, 칼로리
+                  // 거리,시간,칼로리
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
@@ -427,8 +464,8 @@ class _RunningScreenState extends State<RunningScreen> {
                           radius: 35,
                           backgroundColor: Colors.white,
                           child: Icon(
-                            Icons.play_arrow,
-                            color: Color(0xFFE53935), size: 40),
+                              Icons.play_arrow,
+                              color: Color(0xFFE53935), size: 40),
                         ),
                       ),
                       const SizedBox(width: 40),
@@ -439,6 +476,7 @@ class _RunningScreenState extends State<RunningScreen> {
                         onLongPressStart: (_) {
                           // 3초 타이머 시작
                           _stopHoldTimer = Timer(const Duration(seconds: 3), () {
+                            _captureMapScreenshot();
                             _navigateToMain();
                           });
                         },
