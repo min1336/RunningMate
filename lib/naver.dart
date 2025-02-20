@@ -1,6 +1,7 @@
 import 'dart:async'; // 비동기 작업 (Future, Stream) 처리
 import 'dart:convert'; // JSON 데이터 인코딩 및 디코딩
 import 'dart:math'; // 수학적 계산 (랜덤 값, 삼각 함수 등)
+
 import 'package:http/http.dart' as http; // HTTP 요청 처리
 import 'package:flutter/material.dart'; // Flutter UI 구성
 import 'package:flutter_naver_map/flutter_naver_map.dart'; // 네이버 지도 SDK 사용
@@ -13,6 +14,50 @@ class NaverMapApp extends StatefulWidget {
 
   @override
   State<NaverMapApp> createState() => _NaverMapAppState(); // 상태 관리 클래스 반환
+}
+
+class LocationPermissionHandler {
+  static Future<void> requestPermission(BuildContext context) async {
+    var status = await Permission.location.status;
+    if (!status.isGranted) {
+      var result = await Permission.location.request();
+      if (result.isDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('위치 권한이 필요합니다. 설정에서 권한을 허용해주세요.')),
+        );
+      } else if (result.isPermanentlyDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('위치 권한이 영구적으로 거부되었습니다. 설정에서 수동으로 허용해야 합니다.')),
+        );
+        await openAppSettings();
+      }
+    }
+  }
+}
+
+class RouteErrorHandler {
+  static void showRetryDialog(BuildContext context, Function retryFunction) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('길찾기 실패'),
+        content: const Text('길찾기에 실패했습니다. 다시 시도하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              retryFunction();
+            },
+            child: const Text('다시 시도'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _NaverMapAppState extends State<NaverMapApp> {
@@ -28,18 +73,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
   String? _selectedDistance; // 선택한 거리 (km)
   final List<String> _searchHistory = [];  // 🔥 최근 검색 기록 추가
 
-  // 최근 검색 기록에 추가 (중복 방지, 최대 5개 유지)
-  void _addToSearchHistory(String address) {
-    setState(() {
-      _searchHistory.remove(address);  // 중복 제거
-      _searchHistory.insert(0, address);  // 최근 검색 추가
-      if (_searchHistory.length > 5) {
-        _searchHistory.removeLast();  // 최대 5개 유지
-        _isSearching = false;  // 🔥 입력 중단 시 검색 기록 숨김
-      }
-    });
-  }
-
   // 🔽 입력 필드 포커스 변경 시 호출되는 함수
   void _onFocusChange(bool hasFocus) {
     setState(() {
@@ -50,7 +83,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
   // ✅ 주소 자동완성 결과 선택 시 검색 기록에 추가
   void _onAddressSelected(String address) {
     _startController.text = address;
-    _addToSearchHistory(address);  // 🔥 검색 기록에 추가
     setState(() {
       _suggestedAddresses.clear();
     });
@@ -113,11 +145,13 @@ class _NaverMapAppState extends State<NaverMapApp> {
       _routePath = polylineCoordinates; // 🔥 경로 데이터를 변수에 저장
     });
 
-    _mapController!.addOverlay(NPolylineOverlay(
-      id: 'route', // 오버레이 ID
+    _mapController!.addOverlay(NPathOverlay(
+      id: 'full_route', // 오버레이 ID
       color: Colors.lightGreen, // 경로 색상
-      width: 4, // 경로 선 두께
+      width: 8, // 경로 선 두께
       coords: _routePath, // 경로 좌표
+      patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.jpg"),
+      patternInterval: 20,
     ));
   }
 
@@ -494,8 +528,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
                                   _start = await getLocation(
                                       _startController.text);
-                                  _addToSearchHistory(
-                                      _startController.text); // 🔥 검색 기록 추가
 
                                   int retryCount = 0;
                                   const int maxRetries = 10; // 🔥 최대 재탐색 횟수
@@ -562,7 +594,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                             context,
                                             MaterialPageRoute(
                                               builder: (context) => RunningScreen(
-                                                roadPath: _routePath, // 🔥 실제 도로 경로 전달
+                                                roadPath: _routePath,
                                                 startLocation: _start!, // 출발지 좌표 전달
                                               ),
                                             ),

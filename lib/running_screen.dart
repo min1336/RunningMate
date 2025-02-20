@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/services.dart';
+import 'speedDashboard.dart';
 
 class RunningScreen extends StatefulWidget {
-  final List<NLatLng> roadPath; // 네이버 길찾기 API에서 받은 실제 도로 경로
-  final NLatLng startLocation; // 출발지 좌표
+  final List<NLatLng> roadPath;
+  final NLatLng startLocation;
 
   const RunningScreen({
     super.key,
@@ -19,13 +21,14 @@ class RunningScreen extends StatefulWidget {
 
 class _RunningScreenState extends State<RunningScreen> {
   NaverMapController? _mapController;
-  Position? _currentPosition;
   bool _isRunning = false;
   bool _isPaused = false;
   Timer? _timer;
-  StreamSubscription<Position>? _positionStream; // 🔥 위치 스트림 변수 추가
-  int _elapsedTime = 0; // 초 단위
-  double _totalDistance = 0.0; // 실제 이동 거리 (m)
+  StreamSubscription<Position>? _positionStream;
+  Timer? _stopTimer;
+  int _elapsedTime = 0;
+  double _totalDistance = 0.0;
+  double _caloriesBurned = 0.0;
   Position? _lastPosition;
 
   @override
@@ -34,7 +37,6 @@ class _RunningScreenState extends State<RunningScreen> {
     _getCurrentLocation();
   }
 
-  // 현재 위치 가져오기
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
@@ -45,17 +47,17 @@ class _RunningScreenState extends State<RunningScreen> {
       if (permission == LocationPermission.deniedForever) return;
     }
 
-    _currentPosition = await Geolocator.getCurrentPosition();
     setState(() {});
   }
 
-  // 위치 추적 시작 (🔥 실제 이동한 거리만 반영)
   void _startTracking() {
-    _positionStream?.cancel(); // 🔥 기존 스트림이 있다면 해제
+    _positionStream?.cancel();
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     ).listen((Position position) {
-      if (mounted && _isRunning && !_isPaused) { // 🔥 mounted 체크 추가
+      if (mounted && _isRunning && !_isPaused) {
+        double speed = 0.0;
+
         if (_lastPosition != null) {
           double distance = Geolocator.distanceBetween(
             _lastPosition!.latitude,
@@ -63,24 +65,39 @@ class _RunningScreenState extends State<RunningScreen> {
             position.latitude,
             position.longitude,
           );
+          double timeDiff = (position.timestamp.difference(_lastPosition!.timestamp).inMilliseconds) / 1000.0;
 
-          if (distance > 1.0) { // 🔥 너무 작은 움직임(1m 이하)은 무시
+          if (timeDiff > 0) {
+            speed = (distance / timeDiff) * 3.6;
+          }
+
+          if (distance > 1.0) {
             setState(() {
               _totalDistance += distance;
               _lastPosition = position;
+              _caloriesBurned = _calculateCalories(speed);
+            });
+
+            _stopTimer?.cancel();
+            _stopTimer = null;
+          } else {
+            _stopTimer ??= Timer(const Duration(seconds: 3), () {
+              if (_isRunning && !_isPaused) {
+                _stopRun();
+              }
             });
           }
         }
+
         _lastPosition = position;
       }
     });
   }
 
-  // 타이머 시작 (🔥 중복 실행 방지)
   void _startTimer() {
-    _timer?.cancel(); // 🔥 기존 타이머가 있으면 해제
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted && _isRunning) { // 🔥 mounted 체크 추가
+      if (mounted && _isRunning) {
         setState(() {
           _elapsedTime++;
         });
@@ -88,25 +105,35 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
-  // ✅ 평균 페이스 계산 (🔥 100m 이상 이동했을 때만 계산)
-  String _calculatePace() {
-    if (_totalDistance < 100 || _elapsedTime == 0) return "0'00''"; // 100m 이하 또는 시간 0이면 0'00''
+  double _calculateCalories(double speed) {
+    double weight = 70.0;
+    double met = 1.5;
 
-    double paceInSecondsPerKm = _elapsedTime / (_totalDistance / 1000); // km 당 시간(초)
-    int minutes = (paceInSecondsPerKm ~/ 60);
-    int seconds = (paceInSecondsPerKm % 60).toInt();
+    if (speed >= 12.0) {
+      met = 12.0;
+    } else if (speed >= 8.0) {
+      met = 10.0;
+    } else if (speed >= 5.0) {
+      met = 6.0;
+    } else if (speed >= 3.0) {
+      met = 3.0;
+    }
 
-    return "$minutes'${seconds.toString().padLeft(2, '0')}''";
+    return met * weight * (_elapsedTime / 3600);
   }
 
-  // 칼로리 계산 (🔥 이동 거리 반영)
-  double _calculateCalories() {
-    double weight = 70.0; // 기본 체중 (kg)
-    double met = 8.0; // 달리기의 MET 값
-    return (met * weight * (_elapsedTime / 3600)); // kcal 계산
+  void _triggerHapticFeedback() {
+    HapticFeedback.heavyImpact();
   }
 
-  // 달리기 시작
+  void _toggleRun() {
+    if (_isRunning) {
+      _pauseRun();
+    } else {
+      _startRun();
+    }
+  }
+
   void _startRun() {
     setState(() {
       _isRunning = true;
@@ -114,101 +141,150 @@ class _RunningScreenState extends State<RunningScreen> {
     });
     _startTimer();
     _startTracking();
+
+    _triggerHapticFeedback();
   }
 
-  // 일시 정지
   void _pauseRun() {
     setState(() {
       _isRunning = false;
       _isPaused = true;
     });
+
+    _triggerHapticFeedback();
   }
 
-  // 종료 (🔥 타이머 & 위치 스트림 해제)
   void _stopRun() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("달리기 종료"),
+          content: const Text("달리기를 종료하고 돌아가시겠습니까?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("취소"),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _isRunning = false;
+                  _isPaused = false;
+                  _elapsedTime = 0;
+                  _totalDistance = 0.0;
+                  _caloriesBurned = 0.0;
+                  _lastPosition = null;
+                });
+                _timer?.cancel();
+                _positionStream?.cancel();
+                _stopTimer?.cancel();
+                Navigator.of(context).pop();
+                Navigator.pop(context);
+              },
+              child: const Text("확인"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _resetRun() {
     setState(() {
-      _isRunning = false;
-      _isPaused = false;
+      _elapsedTime = 0;
+      _totalDistance = 0.0;
+      _caloriesBurned = 0.0;
+      _lastPosition = null;
     });
     _timer?.cancel();
-    _positionStream?.cancel(); // 🔥 위치 스트림 해제
+    _positionStream?.cancel();
+    _stopTimer?.cancel();
+    Navigator.pop(context);
   }
 
   @override
   void dispose() {
-    _timer?.cancel(); // 🔥 타이머 해제
-    _positionStream?.cancel(); // 🔥 위치 스트림 해제
+    _timer?.cancel();
+    _positionStream?.cancel();
+    _stopTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("달리기 진행 중")),
-      body: Stack(
+      body: Column(
         children: [
-          NaverMap(
-            options: NaverMapViewOptions(
-              initialCameraPosition: NCameraPosition(
-                target: widget.startLocation,
-                zoom: 15,
+          Expanded(
+            child: NaverMap(
+              options: NaverMapViewOptions(
+                initialCameraPosition: NCameraPosition(
+                  target: widget.startLocation,
+                  zoom: 15,
+                ),
+                locationButtonEnable: true,
               ),
-              locationButtonEnable: true,
+              onMapReady: (controller) {
+                _mapController = controller;
+
+                _mapController!.addOverlay(
+                  NPathOverlay(
+                    id: 'recommended_road',
+                    coords: widget.roadPath,
+                    width: 6,
+                    color: Color(0xFFD32F2F),
+                    outlineWidth: 2,
+                    outlineColor: Colors.white,
+                  ),
+                );
+              },
             ),
-            onMapReady: (controller) {
-              _mapController = controller;
-
-              // 🔥 실제 추천 받은 도로 경로 지도에 그리기
-              _mapController!.addOverlay(
-                NPolylineOverlay(
-                  id: 'recommended_road',
-                  coords: widget.roadPath,
-                  width: 6,
-                  color: Colors.blue,
-                ),
-              );
-            },
           ),
-
-          // UI 오버레이
-          Positioned(
-            top: 16,
-            left: 16,
-            right: 16,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 5)],
+            ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    children: [
-                      Text("거리: ${(_totalDistance / 1000).toStringAsFixed(2)} km"),
-                      Text("시간: ${_elapsedTime ~/ 60}분 ${_elapsedTime % 60}초"),
-                      Text("평균 페이스: ${_calculatePace()} /km"),
-                      Text("칼로리 소모: ${_calculateCalories().toStringAsFixed(1)} kcal"),
-                    ],
-                  ),
+                SpeedDashboard(
+                  speed: _lastPosition?.speed ?? 0.0,
+                  distance: _totalDistance / 1000,
+                  calories: _caloriesBurned,
+                  elapsedTime: "${_elapsedTime ~/ 60}:${_elapsedTime % 60}",
+                  heartRate: 138,
                 ),
-                const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    ElevatedButton(
-                      onPressed: _isRunning ? null : _startRun,
-                      child: const Text("▶ 시작"),
+                    GestureDetector(
+                      onTap: _toggleRun,
+                      child: CircleAvatar(
+                        radius: 35,
+                        backgroundColor: _isRunning ? Colors.amber : Colors.green,
+                        child: Icon(
+                          _isRunning ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: _isRunning ? _pauseRun : null,
-                      child: const Text("⏸ 일시 정지"),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: _stopRun,
-                      child: const Text("⏹ 종료"),
+                    const SizedBox(width: 20),
+                    GestureDetector(
+                      onTap: _stopRun,
+                      child: CircleAvatar(
+                        radius: 35,
+                        backgroundColor: Colors.red,
+                        child: const Icon(
+                          Icons.stop,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -220,3 +296,5 @@ class _RunningScreenState extends State<RunningScreen> {
     );
   }
 }
+
+// running_screen.dart 코드 수정: 정지 버튼 클릭 시 확인 대화상자 추가
