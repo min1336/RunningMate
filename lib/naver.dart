@@ -16,69 +16,17 @@ class NaverMapApp extends StatefulWidget {
   State<NaverMapApp> createState() => _NaverMapAppState(); // 상태 관리 클래스 반환
 }
 
-class LocationPermissionHandler {
-  static Future<void> requestPermission(BuildContext context) async {
-    var status = await Permission.location.status;
-    if (!status.isGranted) {
-      var result = await Permission.location.request();
-      if (result.isDenied) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('위치 권한이 필요합니다. 설정에서 권한을 허용해주세요.')),
-        );
-      } else if (result.isPermanentlyDenied) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('위치 권한이 영구적으로 거부되었습니다. 설정에서 수동으로 허용해야 합니다.')),
-        );
-        await openAppSettings();
-      }
-    }
-  }
-}
-
-class RouteErrorHandler {
-  static void showRetryDialog(BuildContext context, Function retryFunction) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('길찾기 실패'),
-        content: const Text('길찾기에 실패했습니다. 다시 시도하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              retryFunction();
-            },
-            child: const Text('다시 시도'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _NaverMapAppState extends State<NaverMapApp> {
   NaverMapController? _mapController; // 네이버 지도 컨트롤러
   final TextEditingController _startController = TextEditingController(); // 출발지 입력 필드 컨트롤러
   List<Map<String, String>> _suggestedAddresses = []; // 자동완성된 주소 목록
+
   List<NLatLng> _routePath = []; // 🔥 실제 도로 경로 데이터를 저장할 변수 추가
   NLatLng? _start; // 출발지 좌표
   List<NLatLng> _waypoints = []; // 경유지 좌표 목록
   double _calculatedDistance = 0.0; // 계산된 총 거리 (km 단위)
   bool _isLoading = false; // 로딩 상태 플래그
-  bool _isSearching = false; // 검색 상태 플래그
   String? _selectedDistance; // 선택한 거리 (km)
-  final List<String> _searchHistory = [];  // 🔥 최근 검색 기록 추가
-
-  // 🔽 입력 필드 포커스 변경 시 호출되는 함수
-  void _onFocusChange(bool hasFocus) {
-    setState(() {
-      _isSearching = hasFocus; // 포커스 상태에 따라 검색 상태 플래그 변경
-    });
-  }
 
   // ✅ 주소 자동완성 결과 선택 시 검색 기록에 추가
   void _onAddressSelected(String address) {
@@ -368,6 +316,31 @@ class _NaverMapAppState extends State<NaverMapApp> {
     }
   }
 
+  Widget _buildBackButton() {
+    return Positioned(
+      top: 50,
+      left: 16,
+      child: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              )
+            ],
+          ),
+          child: const Icon(Icons.arrow_back, color: Colors.black),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -395,7 +368,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
                     child: Column(
                       children: [
                         Focus(
-                          onFocusChange: _onFocusChange,  // 포커스 변경 처리
                           child: TextField(
                             controller: _startController, // 입력 필드 컨트롤러
                             decoration: InputDecoration(
@@ -413,11 +385,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             onChanged: _getSuggestions, // 입력값 변경시 자동완성 호출
                           ),
                         ),
-                        // 🔥 입력 중일 때만 최근 검색 기록 표시
-                        if (_isSearching && _searchHistory.isNotEmpty)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                          ),
                         if (_suggestedAddresses.isNotEmpty)
                           Container(
                             height: 200,
@@ -485,10 +452,10 @@ class _NaverMapAppState extends State<NaverMapApp> {
                               onPressed: _isLoading
                                   ? null
                                   : () async {
-                                FocusScope.of(context).unfocus();  // 🔥 키보드 내리기
+                                FocusScope.of(context).unfocus();
 
                                 setState(() {
-                                  _isLoading = true;  // 🔥 로딩 시작
+                                  _isLoading = true;
                                 });
 
                                 try {
@@ -505,15 +472,15 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                   switch (_selectedDistance) {
                                     case '초급':
                                       minDistance = 500; // 500m
-                                      maxDistance = 3000; // 3km
+                                      maxDistance = 2500; // 2.5km
                                       break;
                                     case '중급':
-                                      minDistance = 3000; // 3km
-                                      maxDistance = 6000; // 6km
+                                      minDistance = 2500; // 2.5km
+                                      maxDistance = 4500; // 4.5km
                                       break;
                                     case '고급':
-                                      minDistance = 6000; // 6km
-                                      maxDistance = 10000; // 10km
+                                      minDistance = 4500; // 4.5km
+                                      maxDistance = 7000; // 7km
                                       break;
                                     default:
                                       minDistance = 0;
@@ -530,21 +497,14 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                       _startController.text);
 
                                   int retryCount = 0;
-                                  const int maxRetries = 10; // 🔥 최대 재탐색 횟수
-                                  bool isRouteFound = false; // ✅ 경로 성공 여부
+                                  const int maxRetries = 10;
+                                  bool isRouteFound = false;
 
                                   while (retryCount < maxRetries) {
-                                    // 경유지 생성
-                                    final waypoints =
-                                    await _generateWaypoints(
-                                      _start!,
-                                      totalDistance / 2,
-                                      seed: DateTime.now()
-                                          .millisecondsSinceEpoch,
-                                    );
-
-                                    _waypoints =
-                                    await optimizeWaypoints(waypoints);
+                                    final waypoints = await _generateWaypoints(
+                                        _start!, totalDistance / 2,
+                                        seed: DateTime.now().millisecondsSinceEpoch);
+                                    _waypoints = await optimizeWaypoints(waypoints);
 
                                     await _getDirections();
 
@@ -564,7 +524,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                   }
 
                                   if (!isRouteFound) {
-                                    // ❗ 경로 찾기 실패 → 사용자 알림 및 버튼 활성화
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('❗ 최적의 경로를 찾지 못했습니다.\n다시 시도해 주세요.')),
                                     );
@@ -575,16 +534,15 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                   );
                                 } finally {
                                   setState(() {
-                                    _isLoading = false;  // 🔥 로딩 종료 → 버튼 활성화
+                                    _isLoading = false;
                                   });
                                 }
                               },
                               child: const Text('길찾기'),
                             ),
-                            const SizedBox(width: 10),
                             ElevatedButton(
                               onPressed: () {
-                                if (_routePath.isNotEmpty) { // 🔥 도로 경로 데이터가 존재할 때만 실행
+                                if (_routePath.isNotEmpty) {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -593,10 +551,11 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                           Navigator.pushReplacement(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (context) => RunningScreen(
-                                                roadPath: _routePath,
-                                                startLocation: _start!, // 출발지 좌표 전달
-                                              ),
+                                              builder: (context) =>
+                                                  RunningScreen(
+                                                    roadPath: _routePath,
+                                                    startLocation: _start!,
+                                                  ),
                                             ),
                                           );
                                         },
