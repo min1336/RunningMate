@@ -119,7 +119,7 @@ class _RunningScreenState extends State<RunningScreen> {
   NMarker? _userLocationMarker;
 
   // 현재 위치 가져오기
-  Future<void> _getCurrentLocation() async {
+  Future<void> _getCurrentLocationAndFollowUser() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
 
@@ -146,9 +146,8 @@ class _RunningScreenState extends State<RunningScreen> {
       // 🏃 사용자 위치 마커 추가 (주황색 달리기 아이콘)
       final icon = await NOverlayImage.fromWidget(
         context: context, // 🔴 필수 context
-        widget: const Icon(
-            Icons.directions_run, color: Colors.orange, size: 50), // 🟠 주황색
-        size: const Size(60, 60),
+        widget: const Icon(Icons.directions_run, color: Colors.orange, size: 50), // 🟠 주황색
+        size: const Size(50, 50),
       );
 
       _userLocationMarker = NMarker(
