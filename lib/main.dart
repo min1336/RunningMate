@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'naver.dart';
 import 'profile.dart';
+import 'package:run1220/Calendar.dart';
 
 void main() async {
   await _initialize();
@@ -282,16 +283,10 @@ class BattleScreen extends StatelessWidget {
   }
 }
 
-class CalendarScreen extends StatelessWidget {
-  const CalendarScreen({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(child: Text('캘린더 페이지')),
-    );
-  }
-}
+
+
+
 
 class FriendScreen extends StatelessWidget {
   const FriendScreen({super.key});

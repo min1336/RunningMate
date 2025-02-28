@@ -32,19 +32,35 @@ class _CountdownScreenState extends State<CountdownScreen> {
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black, // 전체 화면 배경색
       body: Center(
-        child: Text(
-          '$_countdown', // 카운트다운 숫자
-          style: const TextStyle(
-            fontSize: 100,
-            fontWeight: FontWeight.bold,
-            color: Colors.white, // 텍스트 색상
-          ),
+        child: Stack(
+          children: [
+            // 하얀색 테두리 (stroke)
+            Text(
+              '$_countdown',
+              style: TextStyle(
+                fontSize: 100,
+                fontWeight: FontWeight.bold,
+                foreground: Paint()
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = 6
+                  ..color = Colors.white, // 테두리 색상
+              ),
+            ),
+            // 빨간색 본문
+            Text(
+              '$_countdown',
+              style: const TextStyle(
+                fontSize: 100,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFE53935), // 🔴 대표 색상: 빨간색
+              ),
+            ),
+          ],
         ),
       ),
     );

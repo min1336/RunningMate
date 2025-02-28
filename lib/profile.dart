@@ -38,18 +38,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  /// `SharedPreferences`에 프로필 데이터 저장
   Future<void> _saveProfileData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('name', _name);
     await prefs.setString('height', _height);
-    await prefs.setString('weight', _weight);
+    await prefs.setString('weight', _weight);  // 🔥 사용자의 체중 저장
     if (_profileImage != null) {
       await prefs.setString('profileImage', _profileImage!.path);
     }
-
-    setState(() {
-    });
   }
 
   /// 이미지 선택 및 저장
