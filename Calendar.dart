@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:path_provider/path_provider.dart';
-import 'RunningStatsScreen.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({Key? key}) : super(key: key);
@@ -17,8 +17,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
   List<File> imageFiles = [];
-
-  List<Map<String, dynamic>> _runData = [];
+  String selectedGraph = "distance"; // 🔹 기본값: 거리 그래프
 
   @override
   void initState() {
@@ -26,39 +25,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _loadImageFiles(_selectedDay);
   }
 
-  void _loadRunData() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final files = await directory.list().toList();
-
-    List<Map<String, dynamic>> tempRunData = [];
-
-    for (var file in files) {
-      if (file is File && file.path.endsWith('.json')) {
-        if (await file.exists()) {  // ✅ 파일 존재 여부 확인
-          try {
-            final jsonContent = await file.readAsString(); // ✅ 비동기 방식으로 변경
-            if (jsonContent.isNotEmpty) { // ✅ JSON이 비어있는 경우 대비
-              final jsonData = jsonDecode(jsonContent);
-              tempRunData.add({
-                "date": file.path.split('/').last.substring(4, 14), // "run_YYYY-MM-DD.json"에서 날짜 추출
-                "distance": double.tryParse(jsonData["distance"]?.toString() ?? "0") ?? 0.0,
-                "time": double.tryParse(jsonData["time"]?.toString() ?? "0") ?? 0.0,
-                "calories": double.tryParse(jsonData["calories"]?.toString() ?? "0") ?? 0.0,
-              });
-            }
-          } catch (e) {
-            print("JSON 파일 오류: ${file.path}, 오류 내용: $e");
-          }
-        } else {
-          print("파일이 존재하지 않습니다: ${file.path}");
-        }
-      }
-    }
-
-    setState(() {
-      _runData = tempRunData;
-    });
-  }
 
 // 날짜 선택 시 해당 날짜의 이미지 불러오기
   void _loadImageFiles(DateTime date) async {
@@ -245,6 +211,226 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  void _showGraphModal() {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          setModalState(() => selectedGraph = "distance");
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: selectedGraph == "distance" ? Colors.blue : Colors.grey,
+                        ),
+                        child: const Text("거리"),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          setModalState(() => selectedGraph = "time");
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: selectedGraph == "time" ? Colors.green : Colors.grey,
+                        ),
+                        child: const Text("시간"),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          setModalState(() => selectedGraph = "calories");
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: selectedGraph == "calories" ? Colors.red : Colors.grey,
+                        ),
+                        child: const Text("칼로리"),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildGraph(),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildGraph() {
+    List<FlSpot> spots;
+    Color graphColor;
+    String graphTitle;
+
+    // 🔹 선택된 그래프에 따라 데이터 변경
+    switch (selectedGraph) {
+      case "time":
+        spots = _getTimeSpots();
+        graphColor = Colors.green;
+        graphTitle = "러닝 시간";
+        break;
+      case "calories":
+        spots = _getCaloriesSpots();
+        graphColor = Colors.red;
+        graphTitle = "칼로리 소모";
+        break;
+      default:
+        spots = _getDistanceSpots();
+        graphColor = Colors.blue;
+        graphTitle = "러닝 거리";
+    }
+
+    List<String> times = imageFiles.map((file) {
+      String fileName = file.path.split('/').last;
+      String timePart = fileName.split('_')[2]; // HH-MM-SS 추출
+      List<String> timeParts = timePart.split('-');
+      return "${timeParts[0]}:${timeParts[1]}"; // HH:MM 형식
+    }).toList();
+
+    return Column(
+      children: [
+        Text(
+          graphTitle, // 🔹 그래프 제목 변경
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        SizedBox(
+          height: 300,
+          child: LineChart(
+            LineChartData(
+              minY: 0, // 🔹 최소값 지정하여 축 자동 변경 방지
+              maxY: 300,
+              gridData: FlGridData(show: false), // 🔹 눈금 제거
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                topTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    interval: 1,
+                    reservedSize: 40,
+                    getTitlesWidget: (value, meta) {
+                      int index = value.toInt();
+                      if (index >= 0 && index < times.length) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            times[index], // X축에 HH:MM 표시
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                  axisNameWidget: const Padding(
+                    padding: EdgeInsets.only(top: 8.0),
+                  ),
+                ),
+              ),
+              borderData: FlBorderData(show: true),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  color: graphColor,
+                  dotData: FlDotData(show: true),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  double parseTimeString(String timeString) {
+    final regex = RegExp(r'(\d+)분\s*(\d+)초'); // "X분 Y초" 형태에서 숫자 추출
+    final match = regex.firstMatch(timeString);
+
+    if (match != null) {
+      final minutes = int.parse(match.group(1)!); // 분
+      final seconds = int.parse(match.group(2)!); // 초
+      return (minutes * 60 + seconds).toDouble(); // 총 초로 변환
+    }
+
+    final secondsRegex = RegExp(r'(\d+)초'); // "Y초" 만 있는 경우
+    final secondsMatch = secondsRegex.firstMatch(timeString);
+    if (secondsMatch != null) {
+      return double.parse(secondsMatch.group(1)!);
+    }
+
+    return 0.0; // 변환 실패 시 기본값
+  }
+
+  List<FlSpot> _getDistanceSpots() {
+    List<FlSpot> spots = [];
+    for (int i = 0; i < imageFiles.length; i++) {
+      final summaryFile = File(imageFiles[i].path.replaceAll('.png', '.json'));
+      if (summaryFile.existsSync()) {
+        final jsonContent = jsonDecode(summaryFile.readAsStringSync());
+        final distance = double.tryParse(jsonContent['distance'] ?? '0') ?? 0;
+        spots.add(FlSpot(i.toDouble(), distance));
+        print(jsonContent['distance']);
+      }
+    }
+    return spots;
+  }
+
+  List<FlSpot> _getTimeSpots() {
+    List<FlSpot> spots = [];
+    for (int i = 0; i < imageFiles.length; i++) {
+      final summaryFile = File(imageFiles[i].path.replaceAll('.png', '.json'));
+
+      if (summaryFile.existsSync()) {
+        final jsonContent = jsonDecode(summaryFile.readAsStringSync());
+
+        print("📂 JSON 데이터 확인: $jsonContent");
+
+        if (jsonContent.containsKey('time')) {
+          try {
+            final time = parseTimeString(jsonContent['time'].toString());
+            print("⏳ 변환된 시간 데이터 (초): $time");
+            spots.add(FlSpot(i.toDouble(), time));
+          } catch (e) {
+            print("❌ 시간 데이터 변환 오류: ${jsonContent['time']}");
+          }
+        }
+      }
+    }
+    return spots;
+  }
+
+  List<FlSpot> _getCaloriesSpots() {
+    List<FlSpot> spots = [];
+    for (int i = 0; i < imageFiles.length; i++) {
+      final summaryFile = File(imageFiles[i].path.replaceAll('.png', '.json'));
+      if (summaryFile.existsSync()) {
+        final jsonContent = jsonDecode(summaryFile.readAsStringSync());
+        final calories = double.tryParse(jsonContent['calories'] ?? '0') ?? 0;
+        spots.add(FlSpot(i.toDouble(), calories));
+      }
+    }
+    return spots;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -253,17 +439,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         title: const Text('러닝 기록 캘린더', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.redAccent,
         actions: [
-          // ✅ 추가: 그래프 보기 버튼
           IconButton(
-            icon: const Icon(Icons.bar_chart, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => RunningStatsScreen(runData: _runData),
-                ),
-              );
-            },
+            icon: Icon(Icons.bar_chart, color: Colors.white),
+            onPressed: _showGraphModal,
           ),
         ],
       ),
