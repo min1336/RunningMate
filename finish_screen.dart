@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:run1220/main.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
+import 'package:intl/intl.dart'; // 날짜 형식 패키지
+import 'package:run1220/main.dart';
 
 class FinishScreen extends StatelessWidget {
   final double distance;
@@ -16,6 +17,7 @@ class FinishScreen extends StatelessWidget {
     required this.routePath,
   });
 
+  // 시간을 "MM:SS" 형식으로 변환
   String _formatTime(int seconds) {
     if (seconds <= 0) return "--:--";
     int minutes = seconds ~/ 60;
@@ -25,11 +27,10 @@ class FinishScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ 현재 요일 가져오기 (자동 변경)
+    String dayOfWeek = DateFormat('EEEE', 'ko_KR').format(DateTime.now());
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('런닝 종료'),
-        automaticallyImplyLeading: false, // 뒤로 가기 버튼 제거
-      ),
       body: Column(
         children: [
           Expanded(
@@ -39,12 +40,11 @@ class FinishScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("오늘 - 오후 러닝", style: TextStyle(fontSize: 16, color: Colors.grey)),
-                    const SizedBox(height: 8),
-                    Text("목요일 오후 러닝", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 20),
+                    Text("$dayOfWeek 오후 러닝", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)), // ✅ 요일 자동 변경
                     const SizedBox(height: 20),
 
-                    // 거리
+                    // 거리 표시
                     Center(
                       child: Text(
                         distance.toStringAsFixed(2),
@@ -57,7 +57,7 @@ class FinishScreen extends StatelessWidget {
 
                     const SizedBox(height: 20),
 
-                    // 달리기 정보
+                    // 달리기 정보 표시
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
@@ -129,7 +129,7 @@ class FinishScreen extends StatelessWidget {
   Widget _infoColumn(String title, String value) {
     return Column(
       children: [
-        Text(title, style: TextStyle(fontSize: 14, color: Colors.grey)),
+        Text(title, style: const TextStyle(fontSize: 14, color: Colors.grey)),
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
       ],
