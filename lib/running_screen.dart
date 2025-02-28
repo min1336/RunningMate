@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:run1220/finish_screen.dart';
+import 'main.dart';
 
 
 class RunningScreen extends StatefulWidget {
@@ -394,61 +395,63 @@ class _RunningScreenState extends State<RunningScreen> {
           ),
 
           Align(
-            alignment: Alignment.bottomRight,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 20, right: 13),
-              child: Column(
-                maxinAxisSize: MainAxisSize.min,
-                children: [
-                  // 🔒 잠금 버튼
-                  FloatingActionButton(
-                    heroTag: "lock_button",
-                    onPressed: () {
-                    setState(() {
-                      // 🔒 잠금 기능 추가 (예: 화면 잠금)
-                      _isRunning = !_isRunning;
-                    });
-                    },
-                    backgroundColor: _isRunning ? Colors.red : Colors.green,
-                    child: Icon(
-                      _isRunning ? Icons.lock : Icons.lock_open,
-                      color: Colors.white,
-                    ),
-                  ),
-                const SizedBox(height: 10), // 버튼 간 간격
+              alignment: Alignment.topRight,
+              child: Padding(
+                  padding: const EdgeInsets.only(top: 50, right: 13),
+                  child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 🔒 잠금 버튼
+                        FloatingActionButton(
+                          heroTag: "lock_button",
+                          onPressed: () {
+                            setState(() {
+                              // 🔒 잠금 기능 추가 (예: 화면 잠금)
+                              _isRunning = !_isRunning;
+                            });
+                          },
+                          backgroundColor: _isRunning ? Colors.red : Colors.green,
+                          child: Icon(
+                            _isRunning ? Icons.lock : Icons.lock_open,
+                            color: Colors.white,
+                          ),
+                        ),
 
-                // 🔊 음소거 버튼
-                FloatingActionButton(
-                    heroTag: "mute_button",
-                    onPressed: () {
-                      setState(() {
-                        _isGuideMuted = !_isGuideMuted;
-                      });
-                    },
-                  backgroundColor: _isGuideMuted ? Colors.grey : Colors.blue,
-                  child: Icon(
-                    _isGuideMuted ? Icons.volume_off : Icons.volume_up,
-                    color: Colors.white,
-                  ),
-                ),
-                  const SizedBox(height: 10), // 버튼 간 간격
+                        const SizedBox(height: 10), // 버튼 간 간격
 
-                  // ✅ 설정 버튼 추가 (시점 변경 버튼 삭제)
-                  FloatingActionButton(
-                    heroTag: "settings_button",
-                    onPressed: () {
-                      // 설정 페이지로 이동 (Navigator 사용)
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => SettingsScreen()), // 🔥 설정 페이지로 이동
-                      );
-                    },
-                    backgroundColor: Colors.orange,
-                    child: const Icon(Icons.settings, color: Colors.white), // ⚙️ 설정 아이콘
-                  ),
-                ]
+                        // 🔊 음소거 버튼
+                        FloatingActionButton(
+                          heroTag: "mute_button",
+                          onPressed: () {
+                            setState(() {
+                              _isGuideMuted = !_isGuideMuted;
+                            });
+                          },
+                          backgroundColor: _isGuideMuted ? Colors.grey : Colors.blue,
+                          child: Icon(
+                            _isGuideMuted ? Icons.volume_off : Icons.volume_up,
+                            color: Colors.white,
+                          ),
+                        ),
+
+                        const SizedBox(height: 10), // 버튼 간 간격
+
+                        // ✅ 설정 버튼 추가 (시점 변경 버튼 삭제)
+                        FloatingActionButton(
+                          heroTag: "settings_button",
+                          onPressed: () {
+                            // 설정 페이지로 이동 (Navigator 사용)
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => SettingsScreen()), // 🔥 설정 페이지로 이동
+                            );
+                          },
+                          backgroundColor: Colors.orange,
+                          child: const Icon(Icons.settings, color: Colors.white), // ⚙️ 설정 아이콘
+                        ),
+                      ]
+                  )
               )
-            )
           ),
 
 // 정보 표시 박스 - 버튼 포함
@@ -517,8 +520,8 @@ class _RunningScreenState extends State<RunningScreen> {
                           radius: 30,
                           backgroundColor: Colors.white,
                           child: Icon(
-                            Icons.play_arrow,
-                            color: Color(0xFFE53935), size: 30),
+                              Icons.play_arrow,
+                              color: Color(0xFFE53935), size: 30),
                         ),
                       ),
                       const SizedBox(width: 40),
