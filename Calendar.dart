@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:path_provider/path_provider.dart';
+import 'RunningStatsScreen.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({Key? key}) : super(key: key);
@@ -17,41 +18,76 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _focusedDay = DateTime.now();
   List<File> imageFiles = [];
 
+  List<Map<String, dynamic>> _runData = [];
+
   @override
   void initState() {
     super.initState();
     _loadImageFiles(_selectedDay);
-    }
+  }
 
+  void _loadRunData() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final files = await directory.list().toList();
 
-// 날짜 선택 시 해당 날짜의 이미지 불러오기
-void _loadImageFiles(DateTime date) async {
-  final directory = await getApplicationDocumentsDirectory();
-  final selectedDateString = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+    List<Map<String, dynamic>> tempRunData = [];
 
-  final files = await directory.list().toList();
-
-  // 선택한 날짜와 일치하는 파일만 가져오기
-  setState(() {
-    imageFiles = files.where((file) {
-      if (file is File) {
-        final fileName = file.path.split('/').last;
-        if (fileName.endsWith(".png") && fileName.startsWith("run_")) {
-          // 🔍 파일명에서 날짜 부분을 정확히 추출
-          final regex = RegExp(r'run_(\d{4}-\d{2}-\d{2})');
-          final match = regex.firstMatch(fileName);
-          if (match != null) {
-            final fileDate = match.group(1);
-            return fileDate == selectedDateString;
+    for (var file in files) {
+      if (file is File && file.path.endsWith('.json')) {
+        if (await file.exists()) {  // ✅ 파일 존재 여부 확인
+          try {
+            final jsonContent = await file.readAsString(); // ✅ 비동기 방식으로 변경
+            if (jsonContent.isNotEmpty) { // ✅ JSON이 비어있는 경우 대비
+              final jsonData = jsonDecode(jsonContent);
+              tempRunData.add({
+                "date": file.path.split('/').last.substring(4, 14), // "run_YYYY-MM-DD.json"에서 날짜 추출
+                "distance": double.tryParse(jsonData["distance"]?.toString() ?? "0") ?? 0.0,
+                "time": double.tryParse(jsonData["time"]?.toString() ?? "0") ?? 0.0,
+                "calories": double.tryParse(jsonData["calories"]?.toString() ?? "0") ?? 0.0,
+              });
+            }
+          } catch (e) {
+            print("JSON 파일 오류: ${file.path}, 오류 내용: $e");
           }
+        } else {
+          print("파일이 존재하지 않습니다: ${file.path}");
         }
       }
-      return false;
-    }).map((file) => file as File).toList();
-  });
+    }
 
-  print("🖼️ $selectedDateString의 이미지 파일 로딩 완료: ${imageFiles.length}개");
-}
+    setState(() {
+      _runData = tempRunData;
+    });
+  }
+
+// 날짜 선택 시 해당 날짜의 이미지 불러오기
+  void _loadImageFiles(DateTime date) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final selectedDateString = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+
+    final files = await directory.list().toList();
+
+    // 선택한 날짜와 일치하는 파일만 가져오기
+    setState(() {
+      imageFiles = files.where((file) {
+        if (file is File) {
+          final fileName = file.path.split('/').last;
+          if (fileName.endsWith(".png") && fileName.startsWith("run_")) {
+            // 🔍 파일명에서 날짜 부분을 정확히 추출
+            final regex = RegExp(r'run_(\d{4}-\d{2}-\d{2})');
+            final match = regex.firstMatch(fileName);
+            if (match != null) {
+              final fileDate = match.group(1);
+              return fileDate == selectedDateString;
+            }
+          }
+        }
+        return false;
+      }).map((file) => file as File).toList();
+    });
+
+    print("🖼️ $selectedDateString의 이미지 파일 로딩 완료: ${imageFiles.length}개");
+  }
 
   String _formatTitle(String fileName) {
     // 파일명 형식: run_YYYY-MM-DD_HH-MM-SS.png
@@ -216,6 +252,20 @@ void _loadImageFiles(DateTime date) async {
       appBar: AppBar(
         title: const Text('러닝 기록 캘린더', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.redAccent,
+        actions: [
+          // ✅ 추가: 그래프 보기 버튼
+          IconButton(
+            icon: const Icon(Icons.bar_chart, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => RunningStatsScreen(runData: _runData),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
