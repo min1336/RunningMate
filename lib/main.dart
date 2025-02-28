@@ -6,9 +6,11 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'naver.dart';
 import 'profile.dart';
 import 'package:run1220/Calendar.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   await _initialize();
+  await initializeDateFormatting('ko_KR', null);
   runApp(MyApp());
 }
 
