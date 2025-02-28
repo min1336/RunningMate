@@ -345,90 +345,167 @@ class _NaverMapAppState extends State<NaverMapApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: GestureDetector(
-        behavior: HitTestBehavior.opaque, // 🔥 빈 공간(지도 포함) 터치 시 이벤트 감지
-        onTap: (){
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
           FocusScope.of(context).unfocus();
         },
         child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Running Mate'),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () {
-                Navigator.pop(context); // 이전 화면으로 돌아가기
-              },
-            ),
-          ),
-          body: Stack( // 레이아웃 겹치기 지원
+          body: Stack(
             children: [
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0), // 간격 조정
-                    child: Column(
+              Expanded(
+                child: NaverMap(
+                  options: const NaverMapViewOptions(
+                    initialCameraPosition: NCameraPosition(
+                      target: NLatLng(37.5665, 126.9780),
+                      zoom: 10,
+                    ),
+                    locationButtonEnable: true,
+                  ),
+                  onMapReady: (controller) {
+                    _mapController = controller;
+                  },
+                ),
+              ),
+              Positioned(
+                top: 50,
+                left: 16,
+                right: 16,
+                child: Column(
+                  children: [
+                    Row(
                       children: [
-                        Focus(
-                          child: TextField(
-                            controller: _startController, // 입력 필드 컨트롤러
-                            decoration: InputDecoration(
-                              labelText: '출발지 주소 입력', // 입력 필드 라벨
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.clear), // 입력 초기화 아이콘
-                                onPressed: () {
-                                  _startController.clear(); // 입력 필드 초기화
-                                  setState(() {
-                                    _suggestedAddresses.clear(); // 추천 주소 초기화
-                                  });
-                                },
-                              ),
+                        _buildBackButton(),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                )
+                              ],
                             ),
-                            onChanged: _getSuggestions, // 입력값 변경시 자동완성 호출
+                            child: TextField(
+                              controller: _startController,
+                              decoration: InputDecoration(
+                                hintText: '출발지 주소 입력',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                suffixIcon: IconButton(
+                                  icon: Icon(Icons.clear),
+                                  onPressed: () {
+                                    _startController.clear();
+                                    setState(() {
+                                      _suggestedAddresses.clear();
+                                    });
+                                  },
+                                ),
+                              ),
+                              onChanged: _getSuggestions,
+                            ),
                           ),
                         ),
-                        if (_suggestedAddresses.isNotEmpty)
-                          Container(
-                            height: 200,
-                            color: Colors.white,
-                            child: ListView.builder(
-                              itemCount: _suggestedAddresses.length,
-                              itemBuilder: (context, index) {
-                                final place = _suggestedAddresses[index]['place']!;
-                                final address = _suggestedAddresses[index]['address']!;
+                      ],
+                    ),
+                    if (_suggestedAddresses.isNotEmpty)
+                      Container(
+                        margin: EdgeInsets.only(top: 4),
+                        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            )
+                          ],
+                        ),
+                        child: SingleChildScrollView(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            itemCount: _suggestedAddresses.length,
+                            itemBuilder: (context, index) {
+                              final place = _suggestedAddresses[index]['place']!;
+                              final address = _suggestedAddresses[index]['address']!;
 
-                                return ListTile(
-                                  title: RichText(
-                                    text: TextSpan(
-                                      children: [
-                                        TextSpan(
-                                          text: place, // 장소 이름
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                            color: Colors.black,
-                                          ),
+                              return ListTile(
+                                contentPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                title: RichText(
+                                  text: TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: place,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: Colors.black,
                                         ),
-                                        TextSpan(
-                                          text: '\n$address', // 도로명 주소
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey, // 회색 글씨
-                                          ),
+                                      ),
+                                      TextSpan(
+                                        text: '\n$address',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey,
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
-                                  onTap: () => _onAddressSelected(address),
-                                );
-                              },
-                            ),
+                                ),
+                                onTap: () => _onAddressSelected(address),
+                              );
+                            },
                           ),
-                        DropdownButton<String>(
+                        ),
+                      ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          )
+                        ],
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
                           value: _selectedDistance,
                           hint: const Text('러닝 모드 선택'),
+                          dropdownColor: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                           items: ['초급', '중급', '고급'].map((level) {
                             return DropdownMenuItem<String>(
                               value: level,
-                              child: Text(level),
+                              child: Container(
+                                padding: EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(level),
+                              ),
                             );
                           }).toList(),
                           onChanged: (value) {
@@ -437,165 +514,154 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             });
                           },
                         ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        '${_calculatedDistance.toStringAsFixed(2)} km',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 20,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () async {
+                        FocusScope.of(context).unfocus();
 
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(
-                            '계산된 총 거리: ${_calculatedDistance.toStringAsFixed(2)} km',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ElevatedButton(
-                              onPressed: _isLoading
-                                  ? null
-                                  : () async {
-                                FocusScope.of(context).unfocus();
+                        setState(() {
+                          _isLoading = true;
+                        });
 
-                                setState(() {
-                                  _isLoading = true;
-                                });
+                        try {
+                          if (_selectedDistance == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('달릴 거리를 선택해 주세요.')),
+                            );
+                            return;
+                          }
 
-                                try {
-                                  if (_selectedDistance == null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('달릴 거리를 선택해 주세요.')),
-                                    );
-                                    return;
-                                  }
+                          double minDistance, maxDistance;
 
-                                  double minDistance, maxDistance;
+                          // 러닝 모드에 따른 거리 범위 설정
+                          switch (_selectedDistance) {
+                            case '초급':
+                              minDistance = 500; // 500m
+                              maxDistance = 2500; // 2.5km
+                              break;
+                            case '중급':
+                              minDistance = 2500; // 2.5km
+                              maxDistance = 4500; // 4.5km
+                              break;
+                            case '고급':
+                              minDistance = 4500; // 4.5km
+                              maxDistance = 7000; // 7km
+                              break;
+                            default:
+                              minDistance = 0;
+                              maxDistance = 0;
+                          }
 
-                                  // 러닝 모드에 따른 거리 범위 설정
-                                  switch (_selectedDistance) {
-                                    case '초급':
-                                      minDistance = 500; // 500m
-                                      maxDistance = 2500; // 2.5km
-                                      break;
-                                    case '중급':
-                                      minDistance = 2500; // 2.5km
-                                      maxDistance = 4500; // 4.5km
-                                      break;
-                                    case '고급':
-                                      minDistance = 4500; // 4.5km
-                                      maxDistance = 7000; // 7km
-                                      break;
-                                    default:
-                                      minDistance = 0;
-                                      maxDistance = 0;
-                                  }
+                          final totalDistance =
+                          (maxDistance == double.infinity)
+                              ? (minDistance +
+                              6000) // 프리런 기본값 설정 (6km)
+                              : (minDistance + maxDistance) / 2;
 
-                                  final totalDistance =
-                                  (maxDistance == double.infinity)
-                                      ? (minDistance +
-                                      6000) // 프리런 기본값 설정 (6km)
-                                      : (minDistance + maxDistance) / 2;
+                          _start = await getLocation(_startController.text);
 
-                                  _start = await getLocation(
-                                      _startController.text);
+                          int retryCount = 0;
+                          const int maxRetries = 10;
+                          bool isRouteFound = false;
 
-                                  int retryCount = 0;
-                                  const int maxRetries = 10;
-                                  bool isRouteFound = false;
+                          while (retryCount < maxRetries) {
+                            final waypoints = await _generateWaypoints(
+                                _start!, totalDistance / 2,
+                                seed: DateTime.now().millisecondsSinceEpoch);
+                            _waypoints = await optimizeWaypoints(waypoints);
 
-                                  while (retryCount < maxRetries) {
-                                    final waypoints = await _generateWaypoints(
-                                        _start!, totalDistance / 2,
-                                        seed: DateTime.now().millisecondsSinceEpoch);
-                                    _waypoints = await optimizeWaypoints(waypoints);
+                            await _getDirections();
 
-                                    await _getDirections();
+                            // 계산된 거리 확인
+                            final calculatedDistance =
+                                _calculatedDistance *
+                                    1000; // km → m 변환
 
-                                    // 계산된 거리 확인
-                                    final calculatedDistance =
-                                        _calculatedDistance *
-                                            1000; // km → m 변환
+                            // 범위 내에 있으면 성공
+                            if (calculatedDistance >= minDistance &&
+                                calculatedDistance <= maxDistance) {
+                              isRouteFound = true;
+                              break;
+                            } else {
+                              retryCount++;
+                            }
+                          }
 
-                                    // 범위 내에 있으면 성공
-                                    if (calculatedDistance >= minDistance &&
-                                        calculatedDistance <= maxDistance) {
-                                      isRouteFound = true;
-                                      break;
-                                    } else {
-                                      retryCount++;
-                                    }
-                                  }
-
-                                  if (!isRouteFound) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('❗ 최적의 경로를 찾지 못했습니다.\n다시 시도해 주세요.')),
-                                    );
-                                  }
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('오류 발생: $e')),
-                                  );
-                                } finally {
-                                  setState(() {
-                                    _isLoading = false;
-                                  });
-                                }
-                              },
-                              child: const Text('길찾기'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                if (_routePath.isNotEmpty) {
-                                  Navigator.push(
+                          if (!isRouteFound) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('❗ 최적의 경로를 찾지 못했습니다.\n다시 시도해 주세요.')),
+                            );
+                          }
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('오류 발생: $e')),
+                          );
+                        } finally {
+                          setState(() {
+                            _isLoading = false;
+                          });
+                        }
+                      },
+                      child: const Text('길찾기'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (_routePath.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CountdownScreen(
+                                onCountdownComplete: () {
+                                  Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => CountdownScreen(
-                                        onCountdownComplete: () { // ✅ 카운트다운 종료 시 RunningScreen으로 이동
-                                          Navigator.pushReplacement(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  RunningScreen(
-                                                    roadPath: _routePath,
-                                                    startLocation: _start!,
-                                                  ),
-                                            ),
-                                          );
-                                        },
-                                      ),
+                                      builder: (context) =>
+                                          RunningScreen(
+                                            roadPath: _routePath,
+                                            startLocation: _start!,
+                                          ),
                                     ),
                                   );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("먼저 경로를 추천받아야 합니다.")),
-                                  );
-                                }
-                              },
-                              child: const Text('달리기 시작'),
+                                },
+                              ),
                             ),
-                          ],
-                        )
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: NaverMap(
-                      options: const NaverMapViewOptions(
-                        initialCameraPosition: NCameraPosition(
-                          target: NLatLng(37.5665, 126.9780), // 초기 위치 서울
-                          zoom: 10, // 초기 확대 수준
-                        ),
-                        locationButtonEnable: true, // 현재 위치 버튼 활성화
-                      ),
-                      onMapReady: (controller) {
-                        _mapController = controller; // 지도 컨트롤러 초기화
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("먼저 경로를 추천받아야 합니다.")),
+                          );
+                        }
                       },
+                      child: const Text('달리기 시작'),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              if (_isLoading)  // 🔥 로딩 인디케이터 표시
+              if (_isLoading)
                 Container(
-                  color: Colors.black45, // 반투명 배경
+                  color: Colors.black45,
                   child: const Center(
-                    child: CircularProgressIndicator(), // 로딩 애니메이션
+                    child: CircularProgressIndicator(),
                   ),
                 ),
             ],
