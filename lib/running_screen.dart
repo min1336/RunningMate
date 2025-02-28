@@ -35,7 +35,6 @@ class _RunningScreenState extends State<RunningScreen> {
   double _caloriesBurned = 0.0;
   Position? _lastPosition;
 
-  static const double MIN_DISTANCE_THRESHOLD = 1.0; // 1m 이하 이동 무시
   static const double MIN_SPEED_THRESHOLD = 0.5; // 0.5m/s 이하 속도 무시
   static const double MIN_ACCURACY_THRESHOLD = 10.0; // 10m 이하 정확도만 사용
 
@@ -166,9 +165,6 @@ class _RunningScreenState extends State<RunningScreen> {
       );
     }
   }
-
-
-  bool _isStopping = false; // 정지 대기 상태 여부
 
   List<Position> _recentPositions = [];
   // 지나온 경로 저장용 리스트
@@ -354,18 +350,6 @@ class _RunningScreenState extends State<RunningScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // AppBar: 투명 배경, 그림자 제거, 뒤로가기 버튼만 남김
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-      ),
       body: Stack(
         children: [
           // 지도 전체를 채우도록 설정
@@ -392,6 +376,30 @@ class _RunningScreenState extends State<RunningScreen> {
                 ),
               );
             },
+          ),
+
+          // ✅ 지도 위 좌측 상단에 뒤로가기 버튼 추가
+          Positioned(
+            top: 50,
+            left: 16,
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12), // 🔥 동글 네모 버튼
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    )
+                  ],
+                ),
+                child: const Icon(Icons.arrow_back, color: Colors.black, size: 28),
+              ),
+            ),
           ),
 
           Align(
