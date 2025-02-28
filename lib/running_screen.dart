@@ -1,21 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-import 'dart:math';
-
+import 'dart:math'; // 수학적 계산 (랜덤 값, 삼각 함수 등)
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:screenshot/screenshot.dart';
-
-import 'package:run1220/speedDashboard.dart';
-import 'package:run1220/Calendar.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'main.dart';
-
-
+import 'package:run1220/finish_screen.dart';
 
 
 class RunningScreen extends StatefulWidget {
@@ -32,34 +20,23 @@ class RunningScreen extends StatefulWidget {
   _RunningScreenState createState() => _RunningScreenState();
 }
 
-
-
-
 class _RunningScreenState extends State<RunningScreen> {
-  final ScreenshotController _screenshotController = ScreenshotController();
   NaverMapController? _mapController;
   bool _isRunning = false;
   bool _isPaused = false;
   bool _isGuideMuted = false;
   Timer? _timer;
-  Timer? _stopTimer;
-  StreamSubscription<Position>? _positionStream; // 🔥 위치 스트림 변수 추가
+  StreamSubscription<Position>? _positionStream;
   Timer? _stopTimer;
   Timer? _stopHoldTimer;
-  int _elapsedTime = 0; // 초 단위
-  double _totalDistance = 0.0; // 실제 이동 거리 (m)
+  int _elapsedTime = 0;
+  double _totalDistance = 0.0;
   double _caloriesBurned = 0.0;
   Position? _lastPosition;
-  NMarker? _userLocationMarker;
-  bool _isTimerRunning = false;
-  final List<Position> _recentPositions = [];
-  final List<NLatLng> _traveledPath = []; // 지나온 경로 저장용 리스트
 
   static const double MIN_DISTANCE_THRESHOLD = 1.0; // 1m 이하 이동 무시
   static const double MIN_SPEED_THRESHOLD = 0.5; // 0.5m/s 이하 속도 무시
   static const double MIN_ACCURACY_THRESHOLD = 10.0; // 10m 이하 정확도만 사용
-
-  double _userWeight = 70.0; // 기본 체중 (kg)
 
   @override
   void initState() {
@@ -67,58 +44,9 @@ class _RunningScreenState extends State<RunningScreen> {
     _getCurrentLocationAndFollowUser(); // 내 위치 버튼과 동일한 동작 실행
   }
 
-  Future<String?> _captureMapScreenshot() async {
-    try {
-      final now = DateTime.now();
-      final dateString = "${now.year}-${now.month.toString().padLeft(
-          2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour}-${now
-          .minute}-${now.second}";
-      final directory = await getApplicationDocumentsDirectory();
-
-      // 디렉토리가 올바르게 생성되었는지 확인
-      if (!directory.existsSync()) {
-        directory.createSync(recursive: true);
-      }
-      
-
-      // ScreenshotController 초기화 확인
-      final imagePath = await _screenshotController.captureAndSave(
-          directory.path, fileName: "run_$dateString.png");
-
-      if (imagePath != null) {
-        print("캡처 성공: $imagePath");
-
-        // 정보 저장
-        final summaryData = {
-          "distance": "${(_totalDistance / 1000).toStringAsFixed(2)} km",
-          "time": "${_elapsedTime ~/ 60}분 ${_elapsedTime % 60}초",
-          //"pace": "${_calculatePace()} /km",
-          "calories": "${_caloriesBurned.toStringAsFixed(1)} kcal"
-        };
-
-        final summaryFile = File("${directory.path}/run_$dateString.json");
-        await summaryFile.writeAsString(jsonEncode(summaryData));
-
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const CalendarScreen()),
-          );
-        }
-      } else {
-        print('캡처 실패: 반환된 경로가 null입니다.');
-      }
-      return imagePath;
-    } catch (e) {
-      print('경로 캡처 실패: $e');
-      return null;
-    }
-  }
-
-  // 사용자 위치를 표시할 마커 저장
+// 사용자 위치를 표시할 마커 저장
   NMarker? _userLocationMarker;
 
-  // 현재 위치 가져오기
   Future<void> _getCurrentLocationAndFollowUser() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
@@ -182,8 +110,7 @@ class _RunningScreenState extends State<RunningScreen> {
 
         final updatedIcon = await NOverlayImage.fromWidget(
           context: context, // 🔴 필수 context
-          widget: const Icon(
-              Icons.directions_run, color: Colors.orange, size: 50), // 🟠 주황색
+          widget: const Icon(Icons.directions_run, color: Colors.orange, size: 50), // 🟠 주황색
           size: const Size(60, 60),
         );
 
@@ -196,22 +123,63 @@ class _RunningScreenState extends State<RunningScreen> {
         _mapController!.addOverlay(_userLocationMarker!);
       }
     });
-  }  
+  }
+
+
+
+
+
+
+
+  bool _isTimerRunning = false; // ✅ 타이머 실행 여부 확인용 변수
+
+  void _startTimer() {
+    if (_isTimerRunning) return;
+
+    _isTimerRunning = true;
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && _isRunning) {
+        setState(() {
+          _elapsedTime++;
+        });
+      } else {
+        timer.cancel();
+        _isTimerRunning = false;
+      }
+    });
+  }
+
+  void _navigateToFinishScreen() {
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => FinishScreen(
+            distance: _totalDistance / 1000, // m → km 변환
+            time: _elapsedTime,
+            calories: _caloriesBurned,
+            routePath: _traveledPath, // 사용자가 이동한 경로
+          ),
+        ),
+            (route) => false, // 기존 화면 모두 제거
+      );
+    }
+  }
+
 
   bool _isStopping = false; // 정지 대기 상태 여부
 
   List<Position> _recentPositions = [];
   // 지나온 경로 저장용 리스트
   List<NLatLng> _traveledPath = [];
-  
-  // 위치 추적 시작 (🔥 실제 이동한 거리만 반영)
+
+
   void _startTracking() {
-    _positionStream?.cancel(); // 🔥 기존 스트림이 있다면 해제
+    _positionStream?.cancel();
     _positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.bestForNavigation),
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.bestForNavigation),
     ).listen((Position position) {
-      if (mounted && _isRunning && !_isPaused) return; // 🔥 mounted 체크 추가
+      if (!mounted || !_isRunning || _isPaused) return;
       if (position.accuracy > MIN_ACCURACY_THRESHOLD) return;
 
       if (_lastPosition != null) {
@@ -227,8 +195,7 @@ class _RunningScreenState extends State<RunningScreen> {
 
         // 🚶 지나온 경로 기록
         final currentLatLng = NLatLng(position.latitude, position.longitude);
-        if (_traveledPath.isEmpty ||
-            _calculateDistanceBetween(_traveledPath.last, currentLatLng) >= 5) {
+        if (_traveledPath.isEmpty || _calculateDistanceBetween(_traveledPath.last, currentLatLng) >= 5) {
           _traveledPath.add(currentLatLng);
           _updateTraveledPathOverlay();
         }
@@ -248,26 +215,24 @@ class _RunningScreenState extends State<RunningScreen> {
               p.longitude,
               _recentPositions[index + 1].latitude,
               _recentPositions[index + 1].longitude) /
-              (position.timestamp
-                  .difference(p.timestamp)
-                  .inSeconds);
+              (position.timestamp.difference(p.timestamp).inSeconds);
         }).reduce((a, b) => a + b) /
             _recentPositions.length
             : 0;
 
-        // 평균 속도 및 위치 변화량 검사
+// 평균 속도 및 위치 변화량 검사
         if (avgSpeed < MIN_SPEED_THRESHOLD &&
             _calculateDistanceBetween(
-              NLatLng(_recentPositions.first.latitude,
-                  _recentPositions.first.longitude),
-              NLatLng(_recentPositions.last.latitude,
-                  _recentPositions.last.longitude),
+              NLatLng(_recentPositions.first.latitude, _recentPositions.first.longitude),
+              NLatLng(_recentPositions.last.latitude, _recentPositions.last.longitude),
             ) < 1.5) {
-          _stopTimer ??= Timer(const Duration(seconds: 3), () {
-            if (_isRunning && !_isPaused) {
-              _stopRun();
-            }
-          });
+          if (_stopTimer == null) {
+            _stopTimer = Timer(const Duration(seconds: 3), () {
+              if (_isRunning && !_isPaused) {
+                _stopRun();
+              }
+            });
+          }
         } else {
           _stopTimer?.cancel();
           _stopTimer = null;
@@ -283,15 +248,14 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
-  // 지나온 경로 오버레이 업데이트
+// 지나온 경로 오버레이 업데이트
   void _updateTraveledPathOverlay() {
     if (_mapController == null || _traveledPath.length < 2) return;
 
     final traveledOverlay = NPathOverlay(
       id: 'traveled_path',
       coords: List.from(_traveledPath),
-      color: Colors.orange,
-      // 🔶 주황색 경로
+      color: Colors.orange, // 🔶 주황색 경로
       width: 4,
       outlineWidth: 2,
       outlineColor: Colors.white,
@@ -300,25 +264,7 @@ class _RunningScreenState extends State<RunningScreen> {
     _mapController!.addOverlay(traveledOverlay);
   }
 
-  // 타이머 시작 (🔥 중복 실행 방지)
-  void _startTimer() {
-    if (_isTimerRunning) return;
-
-    _isTimerRunning = true;
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted && _isRunning) {
-        setState(() {
-          _elapsedTime++;
-        });
-      } else {
-        timer.cancel();
-        _isTimerRunning = false;
-      }
-    });
-  }
-
-  // 두 좌표 간 거리 계산
+// 두 좌표 간 거리 계산
   double _calculateDistanceBetween(NLatLng p1, NLatLng p2) {
     const earthRadius = 6371000.0;
     final dLat = (p2.latitude - p1.latitude) * (pi / 180);
@@ -363,19 +309,18 @@ class _RunningScreenState extends State<RunningScreen> {
     double timeInHours = _elapsedTime / 3600.0;
     return met * weight * timeInHours; // 🔥 분 단위까지 고려한 보정
   }
-  
 
-// 달리기 시작
   void _startRun() {
     setState(() {
       _isRunning = true;
       _isPaused = false;
     });
-    _startTimer();
-    _startTracking();
+
+    _startTimer(); // ✅ 타이머 실행
+    _startTracking(); // ✅ GPS 위치 트래킹 다시 시작
   }
 
-  // 일시 정지
+
   void _pauseRun() {
     setState(() {
       _isRunning = false;
@@ -383,56 +328,24 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
-  void _toggleRun() {
-    if (_isRunning) {
-      _pauseRun();
-    } else {
-      _startRun();
-    }
-  }
-
-  // 종료 (🔥 타이머 & 위치 스트림 해제)
   void _stopRun() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("달리기 종료"),
-          content: const Text("정말로 달리기를 종료하시겠습니까?"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text("취소"),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                setState(() {
-                  _isRunning = false;
-                  _isPaused = false;
-                });
-                _timer?.cancel();
-                _positionStream?.cancel();
-                _stopTimer?.cancel();
-                _isTimerRunning = false;
+    setState(() {
+      _isRunning = false;
+      _isPaused = false;
+    });
 
-                await _captureMapScreenshot(); // 🔥 스크린샷 저장 추가
-              },
-              child: const Text("확인"),
-            ),
-          ],
-        );
-      },
-    );
+    _timer?.cancel(); // ✅ 타이머 정지
+    _isTimerRunning = false; // ✅ 타이머 실행 상태 업데이트
+    _positionStream?.cancel(); // ✅ GPS 위치 업데이트 정지
+    _stopTimer?.cancel(); // ✅ 3초 후 정지 타이머 취소
   }
+
 
 
   @override
   void dispose() {
-    _timer?.cancel(); // 🔥 타이머 해제
-    _positionStream?.cancel(); // 🔥 위치 스트림 해제
+    _timer?.cancel();
+    _positionStream?.cancel();
     _stopTimer?.cancel();
     super.dispose();
   }
@@ -440,155 +353,203 @@ class _RunningScreenState extends State<RunningScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
+      // AppBar: 투명 배경, 그림자 제거, 뒤로가기 버튼만 남김
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+      body: Stack(
         children: [
-          // 📌 지도 (NaverMap)
-          Expanded(
-            child: Screenshot(
-              controller: _screenshotController,
-              child: Stack(
+          // 지도 전체를 채우도록 설정
+          NaverMap(
+            options: NaverMapViewOptions(
+              initialCameraPosition: NCameraPosition(
+                target: widget.startLocation,
+                zoom: 16,
+              ),
+              locationButtonEnable: false,
+            ),
+            onMapReady: (controller) {
+              _mapController = controller;
+              _mapController!.addOverlay(
+                NPathOverlay(
+                  id: 'recommended_road',
+                  coords: widget.roadPath,
+                  width: 8,
+                  color: const Color(0xFFD32F2F),
+                  outlineWidth: 2,
+                  outlineColor: Colors.white,
+                  patternImage: NOverlayImage.fromAssetImage("assets/images/pattern_white.png"),
+                  patternInterval: 30,
+                ),
+              );
+            },
+          ),
+
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 20, right: 13),
+              child: Column(
+                maxinAxisSize: MainAxisSize.min,
                 children: [
-                  NaverMap(
-                    options: NaverMapViewOptions(
-                      initialCameraPosition: NCameraPosition(
-                        target: widget.startLocation,
-                        zoom: 16,
-                      ),
-                      locationButtonEnable: true,
+                  // 🔒 잠금 버튼
+                  FloatingActionButton(
+                    heroTag: "lock_button",
+                    onPressed: () {
+                    setState(() {
+                      // 🔒 잠금 기능 추가 (예: 화면 잠금)
+                      _isRunning = !_isRunning;
+                    });
+                    },
+                    backgroundColor: _isRunning ? Colors.red : Colors.green,
+                    child: Icon(
+                      _isRunning ? Icons.lock : Icons.lock_open,
+                      color: Colors.white,
                     ),
-                    onMapReady: (controller) {
-                      _mapController = controller;
-                      _mapController!.addOverlay(
-                        NPathOverlay(
-                          id: 'recommended_road',
-                          coords: widget.roadPath,
-                          width: 8,
-                          color: Color(0xFFD32F2F),
-                          outlineWidth: 2,
-                          outlineColor: Colors.white,
-                          patternImage: NOverlayImage.fromAssetImage(
-                              "assets/images/pattern.jpg"),
-                          patternInterval: 30,
-                        ),
+                  ),
+                const SizedBox(height: 10), // 버튼 간 간격
+
+                // 🔊 음소거 버튼
+                FloatingActionButton(
+                    heroTag: "mute_button",
+                    onPressed: () {
+                      setState(() {
+                        _isGuideMuted = !_isGuideMuted;
+                      });
+                    },
+                  backgroundColor: _isGuideMuted ? Colors.grey : Colors.blue,
+                  child: Icon(
+                    _isGuideMuted ? Icons.volume_off : Icons.volume_up,
+                    color: Colors.white,
+                  ),
+                ),
+                  const SizedBox(height: 10), // 버튼 간 간격
+
+                  // ✅ 설정 버튼 추가 (시점 변경 버튼 삭제)
+                  FloatingActionButton(
+                    heroTag: "settings_button",
+                    onPressed: () {
+                      // 설정 페이지로 이동 (Navigator 사용)
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => SettingsScreen()), // 🔥 설정 페이지로 이동
                       );
                     },
+                    backgroundColor: Colors.orange,
+                    child: const Icon(Icons.settings, color: Colors.white), // ⚙️ 설정 아이콘
                   ),
+                ]
+              )
+            )
+          ),
 
-                  // ✅ 지도 위 우측 하단에 버튼 2개 (잠금 버튼 + 음소거 버튼)
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 20, right: 13), // 🔥 버튼 위치 조정
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // 🔒 잠금 버튼
-                          FloatingActionButton(
-                            heroTag: "lock_button",
-                            onPressed: () {
-                              setState(() {
-                                // 🔒 잠금 기능 추가 (예: 화면 잠금)
-                                _isRunning = !_isRunning;
-                              });
-                            },
-                            backgroundColor: _isRunning ? Colors.red : Colors.green,
-                            child: Icon(
-                              _isRunning ? Icons.lock : Icons.lock_open,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 10), // 버튼 간 간격
-
-                          // 🔊 음소거 버튼
-                          FloatingActionButton(
-                            heroTag: "mute_button",
-                            onPressed: () {
-                              setState(() {
-                                _isGuideMuted = !_isGuideMuted;
-                              });
-                            },
-                            backgroundColor: _isGuideMuted ? Colors.grey : Colors.blue,
-                            child: Icon(
-                              _isGuideMuted ? Icons.volume_off : Icons.volume_up,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 10), // 버튼 간 간격
-
-                          // ✅ 설정 버튼 추가 (시점 변경 버튼 삭제)
-                          FloatingActionButton(
-                            heroTag: "settings_button",
-                            onPressed: () {
-                              // 설정 페이지로 이동 (Navigator 사용)
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => SettingsScreen()), // 🔥 설정 페이지로 이동
-                              );
-                            },
-                            backgroundColor: Colors.orange,
-                            child: const Icon(Icons.settings, color: Colors.white), // ⚙️ 설정 아이콘
-                          ),
-
-                        ],
-                      ),
-                    ),
+// 정보 표시 박스 - 버튼 포함
+          Positioned(
+            bottom: 16,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 6,
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
-            ),
-          ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 거리, 시간, 칼로리, 평균페이스
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          const Text("거리", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text("${(_totalDistance / 1000).toStringAsFixed(2)} km", style: TextStyle(fontSize: 18)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text("시간", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text(_formatTime(_elapsedTime), style: TextStyle(fontSize: 18)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text("칼로리", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text("${_caloriesBurned.toStringAsFixed(1)} kcal", style: TextStyle(fontSize: 18)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text("평균페이스", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text("${_formatPace()} /km", style: TextStyle(fontSize: 18)),
+                        ],
+                      ),
+                    ],
+                  ),
 
-          // 📌 하단 계기판
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(10),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 5)],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SpeedDashboard(
-                  speed: _lastPosition?.speed ?? 0.0,
-                  distance: _totalDistance / 1000,
-                  calories: _caloriesBurned,
-                  elapsedTime: "${_elapsedTime ~/ 60}:${_elapsedTime % 60}",
-                  heartRate: 138,
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTap: _toggleRun,
-                      child: CircleAvatar(
-                        radius: 35,
-                        backgroundColor: _isRunning ? Colors.amber : Colors.green,
-                        child: Icon(
-                          _isRunning ? Icons.pause : Icons.play_arrow,
-                          color: Colors.white,
-                          size: 36,
+
+                  const SizedBox(height: 20),
+
+                  // 버튼 배치
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // 시작 버튼
+                      GestureDetector(
+                        onTap: _isRunning ? null : _startRun,
+                        child: CircleAvatar(
+                          radius: 30,
+                          backgroundColor: Colors.white,
+                          child: Icon(
+                            Icons.play_arrow,
+                            color: Color(0xFFE53935), size: 30),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 20),
-                    GestureDetector(
-                      onTap: _stopRun,
-                      child: CircleAvatar(
-                        radius: 35,
-                        backgroundColor: Colors.red,
-                        child: const Icon(
-                          Icons.stop,
-                          color: Colors.white,
-                          size: 36,
+                      const SizedBox(width: 40),
+
+                      // 정지 버튼 (3초 길게 누르면 main.dart로 이동)
+                      GestureDetector(
+                        onTap: _isRunning ? _pauseRun : null,
+                        onLongPressStart: (_) {
+                          // 3초 타이머 시작
+                          _stopHoldTimer = Timer(const Duration(seconds: 3), () {
+                            _navigateToFinishScreen();
+                          });
+                        },
+                        onLongPressEnd: (_) {
+                          // 손을 떼면 타이머 취소
+                          _stopHoldTimer?.cancel();
+                        },
+                        child: CircleAvatar(
+                          radius: 30,
+                          backgroundColor: Color(0xFFE53935),
+                          child: const Icon(
+                            Icons.stop,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],
