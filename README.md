@@ -45,6 +45,7 @@ dependencies:
   table_calendar: ^3.0.9
   screenshot: ^3.0.0
   fl_chart: ^0.70.2
+  intl: ^0.18.0
 
 
   # The following adds the Cupertino Icons font to your application.
