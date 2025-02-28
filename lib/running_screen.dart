@@ -44,6 +44,8 @@ class _RunningScreenState extends State<RunningScreen> {
   Timer? _timer;
   Timer? _stopTimer;
   StreamSubscription<Position>? _positionStream; // 🔥 위치 스트림 변수 추가
+  Timer? _stopTimer;
+  Timer? _stopHoldTimer;
   int _elapsedTime = 0; // 초 단위
   double _totalDistance = 0.0; // 실제 이동 거리 (m)
   double _caloriesBurned = 0.0;
@@ -62,8 +64,7 @@ class _RunningScreenState extends State<RunningScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserWeight();
-    _getCurrentLocation();
+    _getCurrentLocationAndFollowUser(); // 내 위치 버튼과 동일한 동작 실행
   }
 
   Future<String?> _captureMapScreenshot() async {
@@ -78,6 +79,7 @@ class _RunningScreenState extends State<RunningScreen> {
       if (!directory.existsSync()) {
         directory.createSync(recursive: true);
       }
+      
 
       // ScreenshotController 초기화 확인
       final imagePath = await _screenshotController.captureAndSave(
@@ -112,6 +114,9 @@ class _RunningScreenState extends State<RunningScreen> {
       return null;
     }
   }
+
+  // 사용자 위치를 표시할 마커 저장
+  NMarker? _userLocationMarker;
 
   // 현재 위치 가져오기
   Future<void> _getCurrentLocation() async {
@@ -192,34 +197,14 @@ class _RunningScreenState extends State<RunningScreen> {
         _mapController!.addOverlay(_userLocationMarker!);
       }
     });
-  }
+  }  
 
-  /* 🔥 사용자 체중 불러오기 */
-  Future<void> _loadUserWeight() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _userWeight = double.tryParse(prefs.getString('weight') ?? '70') ?? 70.0;
-    });
-  }
+  bool _isStopping = false; // 정지 대기 상태 여부
 
-/* 🔥 체중을 반영한 칼로리 계산 */
-  double _calculateCalories(double speed) {
-    double met = 1.5;
-
-    if (speed >= 12.0) {
-      met = 12.0;
-    } else if (speed >= 8.0) {
-      met = 10.0;
-    } else if (speed >= 5.0) {
-      met = 6.0;
-    } else if (speed >= 3.0) {
-      met = 3.0;
-    }
-
-    double timeInHours = _elapsedTime / 3600.0;
-    return met * _userWeight * timeInHours; // 🔥 사용자의 체중 반영
-  }
-
+  List<Position> _recentPositions = [];
+  // 지나온 경로 저장용 리스트
+  List<NLatLng> _traveledPath = [];
+  
   // 위치 추적 시작 (🔥 실제 이동한 거리만 반영)
   void _startTracking() {
     _positionStream?.cancel(); // 🔥 기존 스트림이 있다면 해제
@@ -238,12 +223,7 @@ class _RunningScreenState extends State<RunningScreen> {
           position.longitude,
         );
 
-        // ✅ 1m 이하 이동은 무시
-        if (distance < MIN_DISTANCE_THRESHOLD) return;
-
-        double timeDiff = (position.timestamp
-            .difference(_lastPosition!.timestamp)
-            .inMilliseconds) / 1000.0;
+        double timeDiff = (position.timestamp.difference(_lastPosition!.timestamp).inMilliseconds) / 1000.0;
         double speed = timeDiff > 0 ? (distance / timeDiff) : 0.0;
 
         // 🚶 지나온 경로 기록
@@ -350,6 +330,41 @@ class _RunningScreenState extends State<RunningScreen> {
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return earthRadius * c;
   }
+
+  String _formatPace() {
+    double distanceInKm = _totalDistance / 1000;
+    if (distanceInKm <= 0) return "--:--";
+    double paceSeconds = _elapsedTime / distanceInKm; // 초/킬로미터
+    int minutes = paceSeconds ~/ 60;
+    int seconds = (paceSeconds % 60).round();
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+
+  String _formatTime(int seconds) {
+    int minutes = seconds ~/ 60;
+    int remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  double _calculateCalories(double speed) {
+    double weight = 70.0;
+    double met = 1.5;
+
+    if (speed >= 12.0) {
+      met = 12.0;
+    } else if (speed >= 8.0) {
+      met = 10.0;
+    } else if (speed >= 5.0) {
+      met = 6.0;
+    } else if (speed >= 3.0) {
+      met = 3.0;
+    }
+
+    double timeInHours = _elapsedTime / 3600.0;
+    return met * weight * timeInHours; // 🔥 분 단위까지 고려한 보정
+  }
+  
 
 // 달리기 시작
   void _startRun() {
