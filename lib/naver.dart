@@ -95,10 +95,12 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
     _mapController!.addOverlay(NPathOverlay(
       id: 'full_route', // 오버레이 ID
-      color: Colors.lightGreen, // 경로 색상
+      color: const Color(0xFFD32F2F), // 경로 색상
+      outlineWidth: 2,
+      outlineColor: Colors.white,
       width: 8, // 경로 선 두께
       coords: _routePath, // 경로 좌표
-      patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.jpg"),
+      patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.png"),
       patternInterval: 20,
     ));
   }
@@ -629,10 +631,10 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.list, color: Colors.white),
+                                const Icon(Icons.search, color: Colors.white),
                                 const SizedBox(width: 8),
                                 const Text(
-                                  '경로탐색',
+                                  '경로 탐색',
                                   style: TextStyle(color: Colors.white, fontSize: 16),
                                 ),
                               ],
@@ -685,7 +687,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                 const Icon(Icons.directions_run, color: Colors.white),
                                 const SizedBox(width: 8),
                                 const Text(
-                                  '안내시작',
+                                  'START',
                                   style: TextStyle(color: Colors.white, fontSize: 16),
                                 ),
                               ],
