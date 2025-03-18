@@ -73,6 +73,8 @@ class _RunningScreenState extends State<RunningScreen> {
         _caloriesBurned;
         _totalDistance;
         _formatPace();
+        _isPaused;
+        _isRunning;
       });
 
       // 🔥 최신 데이터 전송
@@ -81,6 +83,8 @@ class _RunningScreenState extends State<RunningScreen> {
         'caloriesBurned': _caloriesBurned,
         'pace': _formatPace(),
         'totalDistance': _totalDistance,
+        'paused': _isPaused,
+        'restart': _isRunning,
       });
     });
   }
@@ -442,6 +446,8 @@ class _RunningScreenState extends State<RunningScreen> {
 
   @override
   void dispose() {
+    widget._statsController.close();
+    _runningTTS?.dispose();
     _timer?.cancel();
     _positionStream?.cancel();
     _stopTimer?.cancel();
