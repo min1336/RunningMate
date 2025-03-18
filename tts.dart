@@ -6,9 +6,10 @@ class RunningTTS {
   final RunningScreen runningScreen;
   final AudioPlayer _audioPlayer = AudioPlayer();
   late StreamSubscription<Map<String, dynamic>> _statsSubscription;
+  bool _hasPlayedPauseAudio = false;
+  bool _hasRestartAudio = false;
 
   RunningTTS(this.runningScreen) {
-    print("121323");
     // 실시간 데이터 구독 시작
     _statsSubscription = runningScreen.statsStream.listen((stats) {
       _handleRunningStats(stats);
@@ -20,12 +21,34 @@ class RunningTTS {
     int elapsedTime = stats['elapsedTime'];
     double caloriesBurned = stats['caloriesBurned'];
     String pace = stats['pace'];
+    double distance = stats['totalDistance'];
+    bool ispaused = stats['paused'];
+    bool restart = stats['restart'];
 
-    print("경과 시간: ${elapsedTime}s | 칼로리: ${caloriesBurned}kcal | 페이스: $pace");
+    print("경과 시간: ${elapsedTime}s | 칼로리: ${caloriesBurned}kcal | 페이스: $pace | 거리: $distance");
 
-    // 10분 경과 시 TTS 실행
-    if (elapsedTime == 3) { // 10분 = 600초
-      _playAudio("TTS/start1.mp3"); // 10분 경과 알림 MP3
+
+    //--------------- 밑으로 조건문 추가 -------------
+
+    // 시작 후 3초 후 재생
+    if (elapsedTime == 1) {
+      _playAudio("TTS/start1.mp3");
+    }
+
+    // 정지하면 재생
+    if (ispaused && !_hasPlayedPauseAudio) {
+      _playAudio("TTS/pause_run.mp3");
+      _hasPlayedPauseAudio = true;
+      _hasRestartAudio = true;
+    }
+    // 정지 후 중복 재생 방지
+    if (!ispaused) {
+      _hasPlayedPauseAudio = false;
+    }
+
+    if (restart && _hasRestartAudio) {
+      _playAudio("TTS/restart_run.mp3");
+      _hasRestartAudio = false;
     }
   }
 
