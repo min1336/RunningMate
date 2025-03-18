@@ -1,9 +1,15 @@
 import 'dart:async';
 import 'dart:math'; // 수학적 계산 (랜덤 값, 삼각 함수 등)
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:run1220/finish_screen.dart';
+import 'package:screenshot/screenshot.dart';
+import 'Calendar.dart';
+import 'package:path_provider/path_provider.dart';
+
 import 'main.dart';
 
 
@@ -22,6 +28,7 @@ class RunningScreen extends StatefulWidget {
 }
 
 class _RunningScreenState extends State<RunningScreen> {
+  final ScreenshotController _screenshotController = ScreenshotController();
   NaverMapController? _mapController;
   bool _isRunning = false;
   bool _isPaused = false;
@@ -34,6 +41,7 @@ class _RunningScreenState extends State<RunningScreen> {
   double _totalDistance = 0.0;
   double _caloriesBurned = 0.0;
   Position? _lastPosition;
+  NMarker? _userLocationMarker;
 
   static const double MIN_SPEED_THRESHOLD = 0.5; // 0.5m/s 이하 속도 무시
   static const double MIN_ACCURACY_THRESHOLD = 10.0; // 10m 이하 정확도만 사용
@@ -44,8 +52,49 @@ class _RunningScreenState extends State<RunningScreen> {
     _getCurrentLocationAndFollowUser(); // 내 위치 버튼과 동일한 동작 실행
   }
 
-// 사용자 위치를 표시할 마커 저장
-  NMarker? _userLocationMarker;
+  Future<String?> _captureMapScreenshot() async {
+    try {
+      final now = DateTime.now();
+      final dateString = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour}-${now.minute}-${now.second}";
+      final directory = await getApplicationDocumentsDirectory();
+
+      // 디렉토리가 올바르게 생성되었는지 확인
+      if (!directory.existsSync()) {
+        directory.createSync(recursive: true);
+      }
+
+      // ScreenshotController 초기화 확인
+      final imagePath = await _screenshotController.captureAndSave(directory.path, fileName: "run_$dateString.png");
+
+      if (imagePath != null) {
+        print("캡처 성공: $imagePath");
+
+        // 정보 저장
+        final summaryData = {
+          "distance": "${(_totalDistance / 1000).toStringAsFixed(2)} km",
+          "time": "${_elapsedTime ~/ 60}분 ${_elapsedTime % 60}초",
+          "pace": "${_formatPace()} /km",
+          "calories": "${_caloriesBurned.toStringAsFixed(1)} kcal"
+        };
+
+        final summaryFile = File("${directory.path}/run_$dateString.json");
+        await summaryFile.writeAsString(jsonEncode(summaryData));
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const CalendarScreen()),
+          );
+        }
+      } else {
+        print('캡처 실패: 반환된 경로가 null입니다.');
+      }
+      return imagePath;
+    } catch (e) {
+      print('경로 캡처 실패: $e');
+      return null;
+    }
+  }
 
   Future<void> _getCurrentLocationAndFollowUser() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -125,12 +174,6 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
-
-
-
-
-
-
   bool _isTimerRunning = false; // ✅ 타이머 실행 여부 확인용 변수
 
   void _startTimer() {
@@ -170,6 +213,12 @@ class _RunningScreenState extends State<RunningScreen> {
   // 지나온 경로 저장용 리스트
   List<NLatLng> _traveledPath = [];
 
+
+  double _calculateGradient(double previousAltitude, double currentAltitude, double distance) {
+    if (distance == 0) return 0.0; // 이동거리가 0이면 경사도 0%
+    double elevationChange = currentAltitude - previousAltitude; // 고도 차이 계산
+    return (elevationChange / distance) * 100; // 경사도 계산 (단위: %)
+  }
 
   void _startTracking() {
     _positionStream?.cancel();
@@ -217,6 +266,8 @@ class _RunningScreenState extends State<RunningScreen> {
             _recentPositions.length
             : 0;
 
+
+
 // 평균 속도 및 위치 변화량 검사
         if (avgSpeed < MIN_SPEED_THRESHOLD &&
             _calculateDistanceBetween(
@@ -238,7 +289,12 @@ class _RunningScreenState extends State<RunningScreen> {
         setState(() {
           _totalDistance += distance;
           _lastPosition = position;
-          _caloriesBurned = _calculateCalories(speed);
+
+          double previousAltitude = _lastPosition != null ? _lastPosition!.altitude : position.altitude;
+          double currentAltitude = position.altitude;
+          double currentGradient = _calculateGradient(previousAltitude, currentAltitude, distance);
+
+          _caloriesBurned = _calculateCalories(speed, currentGradient);
         });
       }
       _lastPosition = position;
@@ -289,9 +345,9 @@ class _RunningScreenState extends State<RunningScreen> {
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
-  double _calculateCalories(double speed) {
-    double weight = 70.0;
-    double met = 1.5;
+  double _calculateCalories(double speed, double gradient) {
+    double weight = 70.0; // 사용자 체중 (TODO: 프로필에서 가져오기)
+    double met = 1.5; // 기본 MET 값
 
     if (speed >= 12.0) {
       met = 12.0;
@@ -303,9 +359,21 @@ class _RunningScreenState extends State<RunningScreen> {
       met = 3.0;
     }
 
+    // 🔥 경사도 반영
+    if (gradient >= 5) {
+      met += 1.5; // 오르막길 5% 이상 → MET 증가
+    }
+    if (gradient >= 10) {
+      met += 2.5; // 오르막길 10% 이상 → MET 더 증가
+    }
+    if (gradient < -5) {
+      met -= 1.0; // 내리막길 → MET 약간 감소
+    }
+
     double timeInHours = _elapsedTime / 3600.0;
-    return met * weight * timeInHours; // 🔥 분 단위까지 고려한 보정
+    return met * weight * timeInHours;
   }
+
 
   void _startRun() {
     setState(() {
@@ -352,30 +420,32 @@ class _RunningScreenState extends State<RunningScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // 지도 전체를 채우도록 설정
-          NaverMap(
-            options: NaverMapViewOptions(
-              initialCameraPosition: NCameraPosition(
-                target: widget.startLocation,
-                zoom: 16,
-              ),
-              locationButtonEnable: false,
-            ),
-            onMapReady: (controller) {
-              _mapController = controller;
-              _mapController!.addOverlay(
-                NPathOverlay(
-                  id: 'recommended_road',
-                  coords: widget.roadPath,
-                  width: 8,
-                  color: const Color(0xFFD32F2F),
-                  outlineWidth: 2,
-                  outlineColor: Colors.white,
-                  patternImage: NOverlayImage.fromAssetImage("assets/images/pattern_white.png"),
-                  patternInterval: 30,
+          Screenshot(
+            controller: _screenshotController,
+            child: NaverMap(
+              options: NaverMapViewOptions(
+                initialCameraPosition: NCameraPosition(
+                  target: widget.startLocation,
+                  zoom: 16,
                 ),
-              );
-            },
+                locationButtonEnable: false,
+              ),
+              onMapReady: (controller) {
+                _mapController = controller;
+                _mapController!.addOverlay(
+                  NPathOverlay(
+                    id: 'recommended_road',
+                    coords: widget.roadPath,
+                    width: 8,
+                    color: const Color(0xFFD32F2F),
+                    outlineWidth: 2,
+                    outlineColor: Colors.white,
+                    patternImage: NOverlayImage.fromAssetImage("assets/images/pattern_white.png"),
+                    patternInterval: 30,
+                  ),
+                );
+              },
+            ),
           ),
 
           // ✅ 지도 위 좌측 상단에 뒤로가기 버튼 추가
@@ -540,6 +610,7 @@ class _RunningScreenState extends State<RunningScreen> {
                         onLongPressStart: (_) {
                           // 3초 타이머 시작
                           _stopHoldTimer = Timer(const Duration(seconds: 3), () {
+                            _captureMapScreenshot();
                             _navigateToFinishScreen();
                           });
                         },
