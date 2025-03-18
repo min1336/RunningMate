@@ -46,6 +46,7 @@ dependencies:
   screenshot: ^3.0.0
   fl_chart: ^0.70.2
   intl: ^0.18.0
+  audioplayers: ^6.1.0
 
 
   # The following adds the Cupertino Icons font to your application.
@@ -71,6 +72,8 @@ flutter:
     - assets/images/pattern.jpg
     - assets/images/default_profile.png
     - assets/images/character.png
+    - assets/voice/pace_down.mp3
+    - assets/speed.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
