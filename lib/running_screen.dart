@@ -38,6 +38,8 @@ class _RunningScreenState extends State<RunningScreen> {
   bool _isRunning = false;
   bool _isPaused = false;
   bool _isGuideMuted = false;
+  bool _isStop = false;
+  bool _isStart = false;
   Timer? _timer;
   StreamSubscription<Position>? _positionStream;
   Timer? _stopTimer;
@@ -75,6 +77,8 @@ class _RunningScreenState extends State<RunningScreen> {
         _formatPace();
         _isPaused;
         _isRunning;
+        _isStop;
+        _isStart;
       });
 
       // 🔥 최신 데이터 전송
@@ -85,6 +89,8 @@ class _RunningScreenState extends State<RunningScreen> {
         'totalDistance': _totalDistance,
         'paused': _isPaused,
         'restart': _isRunning,
+        'stop': _isStop,
+        'start': _isStart,
       });
     });
   }
@@ -416,6 +422,12 @@ class _RunningScreenState extends State<RunningScreen> {
     setState(() {
       _isRunning = true;
       _isPaused = false;
+
+      if (_elapsedTime == 0) {
+        _isStart = true;
+      } else {
+        _isStart = false;
+      }
     });
 
     _startTimer(); // ✅ 타이머 실행
@@ -630,38 +642,63 @@ class _RunningScreenState extends State<RunningScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // 시작 버튼
+                      // ✅ 시작/정지 통합 버튼
                       GestureDetector(
-                        onTap: _isRunning ? null : _startRun,
+                        onTap: () {
+                          if (_isRunning) {
+                            _pauseRun();
+                          } else {
+                            _startRun();
+                          }
+                        },
                         child: CircleAvatar(
                           radius: 30,
                           backgroundColor: Colors.white,
                           child: Icon(
-                              Icons.play_arrow,
-                              color: Color(0xFFE53935), size: 30),
+                            _isRunning ? Icons.pause : Icons.play_arrow,
+                            color: Color(0xFFE53935),
+                            size: 30,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 40),
 
-                      // 정지 버튼 (3초 길게 누르면 main.dart로 이동)
+                      // ✅ 종료 버튼 (팝업 확인 후 종료)
                       GestureDetector(
-                        onTap: _isRunning ? _pauseRun : null,
-                        onLongPressStart: (_) {
-                          // 3초 타이머 시작
-                          _stopHoldTimer = Timer(const Duration(seconds: 3), () {
-                            _captureMapScreenshot();
+                        onTap: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("달리기 종료"),
+                                content: const Text("달리기를 종료하시겠습니까?"),
+                                actions: [
+                                  TextButton(
+                                    child: const Text("아니오"),
+                                    onPressed: () => Navigator.of(context).pop(false),
+                                  ),
+                                  TextButton(
+                                    child: const Text("예"),
+                                    onPressed: () => Navigator.of(context).pop(true),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          if (confirm == true) {
+                            setState(() {
+                              _isStop = true; // 🔥 먼저 stop 신호를 보냄
+                            });
+                            await _captureMapScreenshot();
                             _navigateToFinishScreen();
-                          });
-                        },
-                        onLongPressEnd: (_) {
-                          // 손을 떼면 타이머 취소
-                          _stopHoldTimer?.cancel();
+                          }
                         },
                         child: CircleAvatar(
                           radius: 30,
                           backgroundColor: Color(0xFFE53935),
                           child: const Icon(
-                            Icons.stop,
+                            Icons.flag, // 종료 아이콘으로 변경
                             color: Colors.white,
                             size: 30,
                           ),
