@@ -50,6 +50,8 @@ class _RunningScreenState extends State<RunningScreen> {
   Position? _lastPosition;
   NMarker? _userLocationMarker;
   RunningTTS? _runningTTS;
+  int _fakeHeartRate = 80; // 초기값
+  Timer? _heartRateTimer;
 
   static const double MIN_SPEED_THRESHOLD = 0.5; // 0.5m/s 이하 속도 무시
   static const double MIN_ACCURACY_THRESHOLD = 10.0; // 10m 이하 정확도만 사용
@@ -245,6 +247,7 @@ class _RunningScreenState extends State<RunningScreen> {
             time: _elapsedTime,
             calories: _caloriesBurned,
             routePath: _traveledPath, // 사용자가 이동한 경로
+            averageHeartRate: _averageHeartRate,
           ),
         ),
             (route) => false, // 기존 화면 모두 제거
@@ -432,6 +435,7 @@ class _RunningScreenState extends State<RunningScreen> {
 
     _startTimer(); // ✅ 타이머 실행
     _startTracking(); // ✅ GPS 위치 트래킹 다시 시작
+    _startFakeHeartRateMonitor();
   }
 
 
@@ -454,6 +458,44 @@ class _RunningScreenState extends State<RunningScreen> {
     _stopTimer?.cancel(); // ✅ 3초 후 정지 타이머 취소
   }
 
+  void _startFakeHeartRateMonitor() {
+    _heartRateLog.add(_fakeHeartRate);
+    _heartRateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!_isRunning || _isPaused) {
+        // 휴식 중 → 천천히 안정 심박수로 회복
+        if (_fakeHeartRate > 75) _fakeHeartRate -= 2;
+        else if (_fakeHeartRate < 65) _fakeHeartRate += 2;
+      } else {
+        // 평균 페이스 기준으로 심박수 조정
+        final pace = _formatPace(); // 예: "05:30"
+        final parts = pace.split(":");
+        if (parts.length == 2) {
+          final paceInSeconds = int.parse(parts[0]) * 60 + int.parse(parts[1]);
+
+          int targetHR;
+          if (paceInSeconds < 300) targetHR = 170; // 5:00 미만 (빠름)
+          else if (paceInSeconds < 360) targetHR = 160; // 6분대
+          else if (paceInSeconds < 420) targetHR = 145; // 7분대
+          else targetHR = 130; // 느림
+
+
+          // 현재 심박수 → 목표값으로 점진적으로 이동
+          if (_fakeHeartRate < targetHR) _fakeHeartRate += 3;
+          else if (_fakeHeartRate > targetHR) _fakeHeartRate -= 2;
+
+          _heartRateLog.add(_fakeHeartRate);
+        }
+      }
+
+      setState(() {}); // UI 갱신
+    });
+  }
+
+  List<int> _heartRateLog = [];
+  int get _averageHeartRate {
+    if (_heartRateLog.isEmpty) return 0;
+    return _heartRateLog.reduce((a, b) => a + b) ~/ _heartRateLog.length;
+  }
 
 
   @override
@@ -630,6 +672,12 @@ class _RunningScreenState extends State<RunningScreen> {
                         children: [
                           const Text("평균페이스", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           Text("${_formatPace()} /km", style: TextStyle(fontSize: 18)),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text("심박수", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text("$_fakeHeartRate bpm", style: TextStyle(fontSize: 18)),
                         ],
                       ),
                     ],
