@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
 import 'package:run1220/main.dart';
 
 class FinishScreen extends StatefulWidget {
@@ -8,6 +9,7 @@ class FinishScreen extends StatefulWidget {
   final int time;
   final double calories;
   final List<NLatLng> routePath;
+  final int averageHeartRate;
 
   const FinishScreen({
     super.key,
@@ -15,6 +17,7 @@ class FinishScreen extends StatefulWidget {
     required this.time,
     required this.calories,
     required this.routePath,
+    required this.averageHeartRate,
   });
 
   @override
@@ -26,6 +29,8 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
   late Animation<double> _distanceAnimation;
   late Animation<int> _timeAnimation;
   late Animation<int> _caloriesAnimation;
+  late Animation<int> _heartRateAnimation;
+
 
   @override
   void initState() {
@@ -49,13 +54,14 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
     );
 
     _controller.forward();
+
+    _heartRateAnimation = IntTween(begin: 0, end: widget.averageHeartRate).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
   }
 
   @override
   void dispose() {
-    if (_controller.isAnimating) {
-      _controller.stop();
-    }
     _controller.dispose();
     super.dispose();
   }
@@ -126,6 +132,20 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
                       return Text(
                         "${_distanceAnimation.value.toStringAsFixed(2)} km",
                         style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // ✅ ❤️ 평균 심박수 추가
+                  AnimatedBuilder(
+                    animation: _heartRateAnimation,
+                    builder: (context, child) {
+                      return Text(
+                        "❤️ 평균 심박수: ${widget.averageHeartRate == 0 ? '--' : '${widget.averageHeartRate} bpm'}"
+                        ,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                       );
                     },
                   ),
