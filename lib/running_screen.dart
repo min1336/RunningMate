@@ -533,7 +533,7 @@ class _RunningScreenState extends State<RunningScreen> {
                     color: const Color(0xFFD32F2F),
                     outlineWidth: 2,
                     outlineColor: Colors.white,
-                    patternImage: NOverlayImage.fromAssetImage("assets/images/pattern_white.png"),
+                    patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.png"),
                     patternInterval: 30,
                   ),
                 );
