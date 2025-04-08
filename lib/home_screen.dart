@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'profile.dart';
 import 'Calendar.dart';
-import 'package:run1220/naver.dart';
+import 'naver.dart';
 import 'package:run1220/crew_screen.dart'; // 경로에 맞게 수정
+import 'package:run1220/marathon_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,7 +19,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 2;
   final List<Widget> _screens = [
-    EventScreen(),
+    MarathonScreen(),
     CrewScreen(),
     MainScreen(),
     BattleScreen(),
@@ -150,8 +151,8 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.smart_toy),
-            label: '이벤트',
+            icon: Icon(Icons.sports),
+            label: '마라톤',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.flag),
@@ -253,17 +254,6 @@ class MainScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class EventScreen extends StatelessWidget {
-  const EventScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(child: Text('이벤트 페이지')),
     );
   }
 }
