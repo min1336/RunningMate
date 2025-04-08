@@ -74,6 +74,10 @@ flutter:
     - assets/TTS/pace_down.mp3
     - assets/TTS/start1.mp3
     - assets/music/Rebel in the Rhythms.mp3
+    - assets/images/marathon_poster.png
+    - assets/images/busan_poster.png
+    - assets/images/daegu_poster.png
+    - assets/images/songdo_poster.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
