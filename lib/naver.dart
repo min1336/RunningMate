@@ -282,8 +282,14 @@ class _NaverMapAppState extends State<NaverMapApp> {
   @override
   void initState() {
     super.initState();
-    _permission();
+    _initializeNaverMap(); // 🔥 추가
+    _permission(); // 기존 위치 권한 요청
   }
+
+  Future<void> _initializeNaverMap() async {
+    await NaverMapSdk.instance.initialize(clientId: 'rz7lsxe3oo');
+  }
+
 
   void _permission() async {
     var status = await Permission.location.status;
