@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:lottie/lottie.dart';
 import 'package:run1220/finish_screen.dart';
 import 'package:screenshot/screenshot.dart';
 import 'Calendar.dart';
@@ -49,9 +50,10 @@ class _RunningScreenState extends State<RunningScreen> {
   double _caloriesBurned = 0.0;
   Position? _lastPosition;
   NMarker? _userLocationMarker;
-  RunningTTS? _runningTTS;
   int _fakeHeartRate = 80; // 초기값
   Timer? _heartRateTimer;
+
+  late RunningTTS _runningTTS;
 
   static const double MIN_SPEED_THRESHOLD = 0.5; // 0.5m/s 이하 속도 무시
   static const double MIN_ACCURACY_THRESHOLD = 10.0; // 10m 이하 정확도만 사용
@@ -60,11 +62,7 @@ class _RunningScreenState extends State<RunningScreen> {
   void initState() {
     super.initState();
     _getCurrentLocationAndFollowUser(); // 내 위치 버튼과 동일한 동작 실행
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _runningTTS = RunningTTS(widget); // ✅ `RunningScreen`의 데이터를 전달
-      });
-    });
+    _runningTTS = RunningTTS(widget); // 바로 초기화
     _startStatsave();
   }
 
@@ -625,7 +623,7 @@ class _RunningScreenState extends State<RunningScreen> {
               )
           ),
 
-// 정보 표시 박스 - 버튼 포함
+          // 정보 표시 박스 - 버튼 포함
           Positioned(
             bottom: 16,
             left: 16,
@@ -758,8 +756,75 @@ class _RunningScreenState extends State<RunningScreen> {
               ),
             ),
           ),
+          // 🎵 상단 뮤직 플레이어
+          Positioned(
+            top: 40,
+            left: 0,
+            right: 0,
+            child: buildMusicPlayerBar(_runningTTS.currentBGMNotifier),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget buildMusicPlayerBar(ValueNotifier<String?> notifier) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: notifier,
+      builder: (context, bgmPath, _) {
+        final isPlaying = bgmPath != null;
+
+        return Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            margin: const EdgeInsets.only(top: 20),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(40),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 6,
+                  offset: Offset(0, 3),
+                )
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 🎵 음파 애니메이션
+                SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: Lottie.asset(
+                    'assets/lottie/wave.json',
+                    repeat: true,
+                    animate: isPlaying,
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // 🎧 파일명 or 안내 텍스트
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isPlaying ? "Now Playing" : "No Music",
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    Text(
+                      isPlaying ? bgmPath!.split('/').last : "no music playing",
+                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(width: 20),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
