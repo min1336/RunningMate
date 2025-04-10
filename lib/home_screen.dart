@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'profile.dart';
 import 'Calendar.dart';
 import 'naver.dart';
-import 'package:run1220/crew_screen.dart'; // 경로에 맞게 수정
 import 'package:run1220/marathon_screen.dart';
+import 'package:run1220/friend_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,15 +16,25 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 2;
   final List<Widget> _screens = [
     MarathonScreen(),
-    CrewScreen(),
+    FriendScreen(),
     MainScreen(),
     BattleScreen(),
     CalendarScreen(),
   ];
+
+  Future<void> _updateUserStatus(String status) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance.collection('users').doc(uid).update({
+      'status': status,
+      'lastActive': FieldValue.serverTimestamp(),
+    });
+  }
 
   String _profileName = '사용자 프로필';
   File? _profileImage;
@@ -32,7 +42,25 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // ✅ 추가
     _loadProfileData();
+    _updateUserStatus('online');
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // ✅ 추가
+    _updateUserStatus('offline'); // 앱 종료 처리
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _updateUserStatus('offline');
+    } else if (state == AppLifecycleState.resumed) {
+      _updateUserStatus('online');
+    }
   }
 
   Future<void> _loadProfileData() async {
@@ -94,12 +122,12 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
-              leading: Icon(Icons.people),
+              leading: Icon(Icons.people), // 기존: Icons.flag
               title: Text('친구'),
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => FriendScreen()),
+                  MaterialPageRoute(builder: (context) => const FriendScreen()),
                 );
               },
             ),
@@ -155,8 +183,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: '마라톤',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.flag),
-            label: '크루',
+            icon: Icon(Icons.people), // 기존: Icons.flag
+            label: '친구',             // 기존: '크루'
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.directions_run),
@@ -265,18 +293,6 @@ class BattleScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(child: Text('대결 페이지')),
-    );
-  }
-}
-
-class FriendScreen extends StatelessWidget {
-  const FriendScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('친구')),
-      body: Center(child: Text('친구 목록이 여기에 표시됩니다. 😊')),
     );
   }
 }

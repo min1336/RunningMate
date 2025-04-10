@@ -28,17 +28,17 @@ Future<void> uploadRunRecord({
 }
 
 /// ✅ 다른 사람의 러닝 기록 조회 함수
-Future<List<Map<String, dynamic>>> fetchOtherRunRecords(String myUserId) async {
+Future<List<Map<String, dynamic>>> fetchRunRecordsForUser(String userId) async {
   try {
     final snapshot = await FirebaseFirestore.instance
         .collection('run_records')
-        .where('userId', isNotEqualTo: myUserId)
+        .where('userId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .get();
 
     return snapshot.docs.map((doc) => doc.data()).toList();
   } catch (e) {
-    print("❌ 다른 사람 기록 불러오기 실패: $e");
+    print("❌ 기록 불러오기 실패: $e");
     return [];
   }
 }

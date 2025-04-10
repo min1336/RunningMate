@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'survey_screen.dart';
 
@@ -59,6 +60,10 @@ class _LoginScreenState extends State<LoginScreen> {
           password: password,
         );
 
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('email', email);
+        await prefs.setString('password', password);
+
         if (!userCredential.user!.emailVerified) {
           setState(() => message = '이메일 인증을 완료해주세요.');
           return;
@@ -85,10 +90,17 @@ class _LoginScreenState extends State<LoginScreen> {
           password: password,
         );
 
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('email', email);
+        await prefs.setString('password', password);
+
         await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
           'email': email,
           'nickname': nickname,
           'surveyDone': false,
+          'friends': [],
+          'friendRequests': [],
+          'sentRequests': [],
         });
 
         await userCredential.user!.sendEmailVerification();

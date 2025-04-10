@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math'; // 수학적 계산 (랜덤 값, 삼각 함수 등)
 import 'dart:convert';
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -11,8 +13,7 @@ import 'package:screenshot/screenshot.dart';
 import 'Calendar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:run1220/tts.dart';
-
-import 'main.dart';
+import 'package:run1220/home_screen.dart';
 
 
 class RunningScreen extends StatefulWidget {
@@ -61,9 +62,19 @@ class _RunningScreenState extends State<RunningScreen> {
   @override
   void initState() {
     super.initState();
-    _getCurrentLocationAndFollowUser(); // 내 위치 버튼과 동일한 동작 실행
-    _runningTTS = RunningTTS(widget); // 바로 초기화
+    _getCurrentLocationAndFollowUser();
+    _runningTTS = RunningTTS(widget);
     _startStatsave();
+    _setRunningStatus(); // ✅ 추가
+  }
+
+  Future<void> _setRunningStatus() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance.collection('users').doc(uid).update({
+      'status': 'running',
+    });
   }
 
   void _startStatsave() {

@@ -1,16 +1,19 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'firestore_service.dart';
-import 'global_user.dart';
 import 'dart:convert'; // base64Decode 함수 사용
 
 
 
 class FriendsRunScreen extends StatefulWidget {
-  const FriendsRunScreen({super.key});
+  final String targetUid;
+
+  const FriendsRunScreen({super.key, required this.targetUid});
 
   @override
   State<FriendsRunScreen> createState() => _FriendsRunScreenState();
 }
+
 
 class _FriendsRunScreenState extends State<FriendsRunScreen> {
   List<Map<String, dynamic>> _records = [];
@@ -22,12 +25,12 @@ class _FriendsRunScreenState extends State<FriendsRunScreen> {
   }
 
   Future<void> _loadRecords() async {
-    if (globalUserId == null) return;
-    final result = await fetchOtherRunRecords(globalUserId!);
+    final result = await fetchRunRecordsForUser(widget.targetUid);
     setState(() {
       _records = result;
     });
   }
+
 
   @override
   Widget build(BuildContext context) {
