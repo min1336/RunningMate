@@ -37,7 +37,7 @@ dependencies:
   permission_handler: ^11.0.0
   http: ^0.13.0
   path_provider: ^2.0.11
-  audioplayers: ^6.4.0
+  audioplayers: ^6.1.0
   cupertino_icons: ^1.0.8
   geolocator: ^9.0.2
   image_picker: ^1.1.2
@@ -46,6 +46,11 @@ dependencies:
   screenshot: ^3.0.0
   fl_chart: ^0.70.2
   intl: ^0.18.0
+  firebase_core: ^3.12.1
+  cloud_firestore: ^5.6.5
+  firebase_auth: ^5.5.1
+  lottie: ^2.6.0
+  flutter_secure_storage: ^9.0.0
 
 
   # The following adds the Cupertino Icons font to your application.
@@ -71,13 +76,13 @@ flutter:
     - assets/images/pattern.png
     - assets/images/default_profile.png
     - assets/images/character.png
+    - assets/images/daegu_poster.png
+    - assets/images/busan_poster.png
+    - assets/images/songdo_poster.png
+    - assets/images/marathon_poster.png
     - assets/TTS/pace_down.mp3
     - assets/TTS/start1.mp3
     - assets/music/Rebel in the Rhythms.mp3
-    - assets/images/marathon_poster.png
-    - assets/images/busan_poster.png
-    - assets/images/daegu_poster.png
-    - assets/images/songdo_poster.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
