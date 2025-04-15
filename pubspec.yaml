@@ -85,7 +85,9 @@ flutter:
     - assets/TTS/avoid_path.mp3
     - assets/TTS/pause_run.mp3
     - assets/TTS/restart_run.mp3
-    - assets/music/Rebel in the Rhythms.mp3
+    - assets/music/opening/Untitled.mp3
+    - assets/music/opening/Rebel.mp3
+    - assets/music/opening/Crash_and_Burn.mp3
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
