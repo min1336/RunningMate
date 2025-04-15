@@ -101,6 +101,8 @@ class _LoginScreenState extends State<LoginScreen> {
           'friends': [],
           'friendRequests': [],
           'sentRequests': [],
+          'isAdmin' : false,
+          'cash': 0,
         });
 
         await userCredential.user!.sendEmailVerification();
