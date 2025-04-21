@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:run1220/finish_screen.dart';
 import 'package:screenshot/screenshot.dart';
@@ -19,6 +20,8 @@ import 'package:run1220/home_screen.dart';
 class RunningScreen extends StatefulWidget {
   final List<NLatLng> roadPath;
   final NLatLng startLocation;
+  final bool fromSharedRoute;
+  final String? routeDocId;
 
   final StreamController<Map<String, dynamic>> _statsController = StreamController.broadcast();
 
@@ -26,6 +29,8 @@ class RunningScreen extends StatefulWidget {
     super.key,
     required this.roadPath,
     required this.startLocation,
+    this.fromSharedRoute = false,
+    this.routeDocId,
   });
 
   @override
@@ -247,19 +252,41 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
-  void _navigateToFinishScreen() {
+  void _navigateToFinishScreen() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final now = DateTime.now();
+    final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+
+    final docRef = await FirebaseFirestore.instance.collection('run_records').add({
+      'userId': uid,
+      'date': formattedDate,
+      'distance': _totalDistance / 1000,
+      'time': _formatTime(_elapsedTime),
+      'calories': _caloriesBurned,
+      'route': _traveledPath.map((point) => {
+        'lat': point.latitude,
+        'lng': point.longitude,
+      }).toList(),
+      'createdAt': Timestamp.now(),
+    });
+
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (context) => FinishScreen(
-            distance: _totalDistance / 1000, // m → km 변환
+            distance: _totalDistance / 1000,
             time: _elapsedTime,
             calories: _caloriesBurned,
-            routePath: _traveledPath, // 사용자가 이동한 경로
+            routePath: _traveledPath,
             averageHeartRate: _averageHeartRate,
+            runRecordId: docRef.id, // ✅ 전달
+            fromSharedRoute: widget.fromSharedRoute,
+            routeDocId: widget.routeDocId,
           ),
         ),
-            (route) => false, // 기존 화면 모두 제거
+            (route) => false,
       );
     }
   }
