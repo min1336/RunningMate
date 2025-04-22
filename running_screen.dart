@@ -7,9 +7,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:run1220/finish_screen.dart';
-import 'Calendar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:run1220/tts.dart';
 import 'package:run1220/home_screen.dart';
@@ -18,6 +18,8 @@ import 'package:run1220/home_screen.dart';
 class RunningScreen extends StatefulWidget {
   final List<NLatLng> roadPath;
   final NLatLng startLocation;
+  final bool fromSharedRoute;
+  final String? routeDocId;
 
   final StreamController<Map<String, dynamic>> _statsController = StreamController.broadcast();
 
@@ -25,6 +27,8 @@ class RunningScreen extends StatefulWidget {
     super.key,
     required this.roadPath,
     required this.startLocation,
+    this.fromSharedRoute = false,
+    this.routeDocId,
   });
 
   @override
@@ -218,19 +222,41 @@ class _RunningScreenState extends State<RunningScreen> {
     });
   }
 
-  void _navigateToFinishScreen() {
+  void _navigateToFinishScreen() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final now = DateTime.now();
+    final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+
+    final docRef = await FirebaseFirestore.instance.collection('run_records').add({
+      'userId': uid,
+      'date': formattedDate,
+      'distance': _totalDistance / 1000,
+      'time': _formatTime(_elapsedTime),
+      'calories': _caloriesBurned,
+      'route': _traveledPath.map((point) => {
+        'lat': point.latitude,
+        'lng': point.longitude,
+      }).toList(),
+      'createdAt': Timestamp.now(),
+    });
+
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (context) => FinishScreen(
-            distance: _totalDistance / 1000, // m → km 변환
+            distance: _totalDistance / 1000,
             time: _elapsedTime,
             calories: _caloriesBurned,
-            routePath: _traveledPath, // 사용자가 이동한 경로
+            routePath: _traveledPath,
             averageHeartRate: _averageHeartRate,
+            runRecordId: docRef.id, // ✅ 전달
+            fromSharedRoute: widget.fromSharedRoute,
+            routeDocId: widget.routeDocId,
           ),
         ),
-            (route) => false, // 기존 화면 모두 제거
+            (route) => false,
       );
     }
   }
@@ -493,30 +519,30 @@ class _RunningScreenState extends State<RunningScreen> {
     return Scaffold(
       body: Stack(
         children: [
-            NaverMap(
-              options: NaverMapViewOptions(
-                initialCameraPosition: NCameraPosition(
-                  target: widget.startLocation,
-                  zoom: 16,
-                ),
-                locationButtonEnable: false,
+          NaverMap(
+            options: NaverMapViewOptions(
+              initialCameraPosition: NCameraPosition(
+                target: widget.startLocation,
+                zoom: 16,
               ),
-              onMapReady: (controller) {
-                _mapController = controller;
-                _mapController!.addOverlay(
-                  NPathOverlay(
-                    id: 'recommended_road',
-                    coords: widget.roadPath,
-                    width: 8,
-                    color: const Color(0xFFD32F2F),
-                    outlineWidth: 2,
-                    outlineColor: Colors.white,
-                    patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.png"),
-                    patternInterval: 30,
-                  ),
-                );
-              },
+              locationButtonEnable: false,
             ),
+            onMapReady: (controller) {
+              _mapController = controller;
+              _mapController!.addOverlay(
+                NPathOverlay(
+                  id: 'recommended_road',
+                  coords: widget.roadPath,
+                  width: 8,
+                  color: const Color(0xFFD32F2F),
+                  outlineWidth: 2,
+                  outlineColor: Colors.white,
+                  patternImage: NOverlayImage.fromAssetImage("assets/images/pattern.png"),
+                  patternInterval: 30,
+                ),
+              );
+            },
+          ),
 
           // ✅ 지도 위 좌측 상단에 뒤로가기 버튼 추가
           Positioned(
@@ -601,6 +627,29 @@ class _RunningScreenState extends State<RunningScreen> {
                   )
               )
           ),
+          Positioned(
+            top: 200,
+            right: 13,
+            child: ValueListenableBuilder<double>(
+              valueListenable: _runningTTS.volumeNotifier,
+              builder: (context, volume, _) {
+                return RotatedBox(
+                  quarterTurns: 3, // 세로 슬라이더
+                  child: Slider(
+                    value: volume,
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 10,
+                    onChanged: (newVolume) {
+                      _runningTTS.setBGMVolume(newVolume);
+                    },
+                    activeColor: Colors.blue,
+                    inactiveColor: Colors.grey[300],
+                  ),
+                );
+              },
+            ),
+          ),
 
           // 정보 표시 박스 - 버튼 포함
           Positioned(
@@ -629,32 +678,37 @@ class _RunningScreenState extends State<RunningScreen> {
                     children: [
                       Column(
                         children: [
-                          const Text("거리", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text("${(_totalDistance / 1000).toStringAsFixed(2)} km", style: TextStyle(fontSize: 18)),
+                          Text((_totalDistance / 1000).toStringAsFixed(1),
+                              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
+                          const Text("KM", style: TextStyle(fontSize: 13)),
                         ],
                       ),
                       Column(
                         children: [
-                          const Text("시간", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text(_formatTime(_elapsedTime), style: TextStyle(fontSize: 18)),
+                          Text("$_caloriesBurned",
+                              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
+                          const Text("칼로리", style: TextStyle(fontSize: 13)),
                         ],
                       ),
                       Column(
                         children: [
-                          const Text("칼로리", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text("${_caloriesBurned.toStringAsFixed(1)} kcal", style: TextStyle(fontSize: 18)),
+                          Text(_formatTime(_elapsedTime),
+                              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
+                          const Text("시간", style: TextStyle(fontSize: 13)),
                         ],
                       ),
                       Column(
                         children: [
-                          const Text("평균페이스", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text("${_formatPace()} /km", style: TextStyle(fontSize: 18)),
+                          Text(_formatPace(),
+                              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
+                          const Text("평균페이스", style: TextStyle(fontSize: 13)),
                         ],
                       ),
                       Column(
                         children: [
-                          const Text("심박수", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text("$_fakeHeartRate bpm", style: TextStyle(fontSize: 18)),
+                          Text("$_fakeHeartRate",
+                              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
+                          const Text("BPM", style: TextStyle(fontSize: 13)),
                         ],
                       ),
                     ],
@@ -743,7 +797,7 @@ class _RunningScreenState extends State<RunningScreen> {
             child: buildMusicPlayerBar(_runningTTS.currentBGMNotifier),
           ),
         ],
-    ),
+      ),
     );
   }
 
