@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:run1220/route_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'profile.dart';
 import 'Calendar.dart';
@@ -22,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     MarathonScreen(),
     FriendScreen(),
     MainScreen(),
-    BattleScreen(),
+    RouteScreen(),
     CalendarScreen(),
   ];
 
@@ -191,8 +192,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             label: '달리기',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.group),
-            label: '대결',
+            icon: Icon(Icons.route),
+            label: '루트',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today),
