@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'friend_ranking_screen.dart';
 import 'friends_run_screen.dart';
 
 class FriendScreen extends StatefulWidget {
@@ -180,6 +182,10 @@ class _FriendScreenState extends State<FriendScreen> {
 
     final List<Map<String, dynamic>> fetchedFriends = []; // ✅ friends 리스트 정의
 
+    double getTotalDistance(List<Map<String, dynamic>> records) {
+      return records.fold(0.0, (sum, r) => sum + (r['distance'] ?? 0.0));
+    }
+
     for (final friendUid in friendUids) {
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(friendUid).get();
       if (userDoc.exists) {
@@ -207,6 +213,39 @@ class _FriendScreenState extends State<FriendScreen> {
     });
 
     _loadFriends();
+  }
+
+  Future<void> _pokeFriend(String targetUid, String nickname) async {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid == null) return;
+
+    final now = DateTime.now();
+    final pokeRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetUid)
+        .collection('pokes')
+        .doc(myUid);
+
+    final doc = await pokeRef.get();
+    if (doc.exists) {
+      final lastPoke = doc['timestamp']?.toDate();
+      if (lastPoke != null && now.difference(lastPoke).inSeconds < 10) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("이미 찔렀어요. 나중에 다시 시도해보세요!")),
+        );
+        return;
+      }
+    }
+
+    // 🔥 내 닉네임 조회 추가
+    final myDoc = await FirebaseFirestore.instance.collection('users').doc(myUid).get();
+    final myNickname = myDoc['nickname'] ?? '알 수 없음';
+
+    // 알림 전송
+    await showPushNotification(
+      "$nickname님, $myNickname님이 당신을 콕 찔렀습니다!",
+      "지금 달리러 갈 시간이에요 🏃",
+    );
   }
 
   @override
@@ -290,38 +329,75 @@ class _FriendScreenState extends State<FriendScreen> {
                     ),
                   );
                 },
-                trailing: IconButton(
-                  icon: Icon(Icons.delete_outline, color: Colors.grey),
-                  onPressed: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text("친구 삭제"),
-                        content: const Text("정말 이 친구를 삭제하시겠습니까?"),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text("취소"),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 👆 콕찌르기 버튼
+                    IconButton(
+                      icon: Icon(Icons.touch_app, color: Colors.pinkAccent),
+                      tooltip: '콕찌르기',
+                      onPressed: () => _pokeFriend(f['uid'], f['nickname']),
+                    ),
+                    // ❌ 삭제 버튼
+                    IconButton(
+                      icon: Icon(Icons.delete_outline, color: Colors.grey),
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text("친구 삭제"),
+                            content: const Text("정말 이 친구를 삭제하시겠습니까?"),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text("취소"),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text("삭제", style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
                           ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text("삭제", style: TextStyle(color: Colors.red)),
-                          ),
-                        ],
-                      ),
-                    );
+                        );
 
-                    if (confirm == true) {
-                      _removeFriend(f['uid']);
-                    }
-                  },
+                        if (confirm == true) {
+                          _removeFriend(f['uid']);
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ),
-            ))
-
+            )),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FriendRankingScreen()),
+                  );
+                },
+                icon: const Icon(Icons.leaderboard),
+                label: const Text("거리 랭킹 보기"),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+Future<void> showPushNotification(String title, String body) async {
+  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'poke_channel_id',
+    '콕찌르기 알림',
+    importance: Importance.max,
+    priority: Priority.high,
+  );
+
+  const NotificationDetails details = NotificationDetails(android: androidDetails);
+  await flutterLocalNotificationsPlugin.show(0, title, body, details);
 }

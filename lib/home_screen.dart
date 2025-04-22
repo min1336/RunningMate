@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:run1220/route_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'admin_marathon_manager_screen.dart';
+import 'admin_shop_manager_screen.dart';
+import 'cash_shop_screen.dart';
 import 'profile.dart';
 import 'Calendar.dart';
 import 'naver.dart';
@@ -19,39 +21,29 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 2;
+  String _profileName = '사용자 프로필';
+  File? _profileImage;
+
   final List<Widget> _screens = [
     MarathonScreen(),
     FriendScreen(),
     MainScreen(),
-    RouteScreen(),
+    BattleScreen(),
     CalendarScreen(),
   ];
-
-  Future<void> _updateUserStatus(String status) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    await FirebaseFirestore.instance.collection('users').doc(uid).update({
-      'status': status,
-      'lastActive': FieldValue.serverTimestamp(),
-    });
-  }
-
-  String _profileName = '사용자 프로필';
-  File? _profileImage;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this); // ✅ 추가
+    WidgetsBinding.instance.addObserver(this);
     _loadProfileData();
     _updateUserStatus('online');
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this); // ✅ 추가
-    _updateUserStatus('offline'); // 앱 종료 처리
+    WidgetsBinding.instance.removeObserver(this);
+    _updateUserStatus('offline');
     super.dispose();
   }
 
@@ -66,9 +58,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _loadProfileData() async {
     final prefs = await SharedPreferences.getInstance();
+    String? imagePath = prefs.getString('profileImage');
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    String nickname = '사용자 프로필';
+
+    if (uid != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      nickname = doc.data()?['nickname'] ?? '사용자 프로필';
+    }
+
     setState(() {
-      _profileName = prefs.getString('name') ?? '사용자 프로필';
-      String? imagePath = prefs.getString('profileImage');
+      _profileName = nickname;
       if (imagePath != null && imagePath.isNotEmpty) {
         _profileImage = File(imagePath);
       }
@@ -86,64 +87,120 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _updateUserStatus(String status) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance.collection('users').doc(uid).update({
+      'status': status,
+      'lastActive': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<bool> _isCurrentUserAdmin() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    return doc.data()?['isAdmin'] == true;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(color: Colors.deepOrange),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    onTap: _navigateToProfileScreen,
-                    child: CircleAvatar(
-                      backgroundImage: _profileImage != null
-                          ? FileImage(_profileImage!)
-                          : AssetImage('assets/images/default_profile.png') as ImageProvider,
-                      radius: 40,
-                    ),
+      drawer: FutureBuilder<bool>(
+        future: _isCurrentUserAdmin(),
+        builder: (context, snapshot) {
+          final isAdmin = snapshot.data ?? false;
+
+          return Drawer(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                DrawerHeader(
+                  decoration: BoxDecoration(color: Colors.deepOrange),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                        onTap: _navigateToProfileScreen,
+                        child: CircleAvatar(
+                          backgroundImage: _profileImage != null
+                              ? FileImage(_profileImage!)
+                              : AssetImage('assets/images/default_profile.png') as ImageProvider,
+                          radius: 40,
+                        ),
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        _profileName,
+                        style: TextStyle(color: Colors.white, fontSize: 18),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 10),
-                  Text(
-                    _profileName,
-                    style: TextStyle(color: Colors.white, fontSize: 18),
+                ),
+                ListTile(
+                  leading: Icon(Icons.home),
+                  title: Text('홈'),
+                  onTap: () {
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.people),
+                  title: Text('친구'),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const FriendScreen()),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.settings),
+                  title: Text('설정'),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.monetization_on),
+                  title: Text('캐시 상점'),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const CashShopScreen()),
+                    );
+                  },
+                ),
+                if (isAdmin) ...[
+                  ListTile(
+                    leading: Icon(Icons.admin_panel_settings),
+                    title: Text('상품 관리자'),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AdminShopManagerScreen()),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.admin_panel_settings),
+                    title: Text('마라톤 관리자'),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AdminMarathonManagerScreen()),
+                      );
+                    },
                   ),
                 ],
-              ),
+              ],
             ),
-            ListTile(
-              leading: Icon(Icons.home),
-              title: Text('홈'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.people), // 기존: Icons.flag
-              title: Text('친구'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const FriendScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.settings),
-              title: Text('설정'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => SettingsScreen()),
-                );
-              },
-            ),
-          ],
-        ),
+          );
+        },
       ),
       appBar: AppBar(
         leading: Builder(
@@ -184,8 +241,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             label: '마라톤',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.people), // 기존: Icons.flag
-            label: '친구',             // 기존: '크루'
+            icon: Icon(Icons.people),
+            label: '친구',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.directions_run),
@@ -228,11 +285,11 @@ class MainScreen extends StatelessWidget {
   Widget buildRecommendation(String level) {
     switch (level) {
       case '초급':
-        return Text('🏃‍♂️ 초급자용 짧고 쉬운 코스를 추천합니다.', style: TextStyle(fontSize: 16));
+        return Text('\u{1F3C3}\u200D 초급자용 짧고 쉬운 코스를 추천합니다.', style: TextStyle(fontSize: 16));
       case '중급':
-        return Text('🔥 중급자를 위한 코스를 추천합니다!', style: TextStyle(fontSize: 16));
+        return Text('\u{1F525} 중급자를 위한 코스를 추천합니다!', style: TextStyle(fontSize: 16));
       case '고급':
-        return Text('💪 고강도 장거리 러닝 코스를 추천합니다!', style: TextStyle(fontSize: 16));
+        return Text('\u{1F4AA} 고강도 장거리 러닝 코스를 추천합니다!', style: TextStyle(fontSize: 16));
       default:
         return Text('설문을 먼저 작성해주세요.', style: TextStyle(fontSize: 16));
     }
@@ -277,7 +334,7 @@ class MainScreen extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: 40, vertical: 16),
                 textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              child: Text('🏃 달리기 시작'),
+              child: Text('\u{1F3C3} 달리기 시작'),
             ),
             SizedBox(height: 20),
           ],

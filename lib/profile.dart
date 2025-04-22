@@ -20,6 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _weight = '';
   String _workoutPerWeek = '';
   String _averageDistance = '';
+  int _monthlyCash = 0;
   final _nicknameController = TextEditingController();
 
   @override
@@ -28,6 +29,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadProfileData();
     _loadUserInfo();
     _loadRunStats(); // ✅ 통계 로딩 추가
+    _loadMonthlyCash();
+  }
+
+  Future<void> _loadMonthlyCash() async {
+    final earned = await _getMonthlyCashEarned();
+    setState(() => _monthlyCash = earned);
+  }
+
+  Future<int> _getMonthlyCashEarned() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return 0;
+
+    final now = DateTime.now();
+    final firstOfMonth = DateTime(now.year, now.month, 1);
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('cash_logs')
+        .where('timestamp', isGreaterThanOrEqualTo: firstOfMonth)
+        .get();
+
+    int total = 0;
+    for (var doc in snapshot.docs) {
+      total += (doc['total'] as num).toInt(); // 🔥 num → int
+    }
+    return total;
   }
 
   Future<List<Map<String, dynamic>>> _fetchMyRunRecords() async {
@@ -106,6 +134,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  String _cashBadge = '없음';
+
   Future<void> _loadUserInfo() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -119,6 +149,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _weight = data['weight'] ?? '';
         _workoutPerWeek = data['workoutPerWeek'] ?? '';
         _averageDistance = data['averageDistance'] ?? '';
+
+        final cash = data['cash'] ?? 0;
+        if (cash >= 300) _cashBadge = '🏆 플래티넘';
+        else if (cash >= 150) _cashBadge = '🥇 골드';
+        else if (cash >= 50) _cashBadge = '🥈 실버';
+        else _cashBadge = '🥉 브론즈';
       });
     }
   }
@@ -272,6 +308,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showPokeListDialog() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('pokes')
+        .orderBy('timestamp', descending: true)
+        .limit(20)
+        .get();
+
+    final List<Map<String, dynamic>> pokes = [];
+
+    for (final doc in snapshot.docs) {
+      final senderUid = doc.id;
+      final senderDoc = await FirebaseFirestore.instance.collection('users').doc(senderUid).get();
+      if (!senderDoc.exists) continue;
+      final nickname = senderDoc['nickname'] ?? '알 수 없음';
+      final time = (doc['timestamp'] as Timestamp).toDate();
+      pokes.add({'nickname': nickname, 'timestamp': time});
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('👆 받은 콕찌르기'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: pokes.isEmpty
+              ? const Text('최근 받은 콕찌르기가 없습니다.')
+              : ListView.builder(
+            itemCount: pokes.length,
+            shrinkWrap: true,
+            itemBuilder: (context, index) {
+              final poke = pokes[index];
+              return ListTile(
+                leading: const Icon(Icons.touch_app, color: Colors.pink),
+                title: Text('${poke['nickname']}님이 콕 찔렀어요!'),
+                subtitle: Text(
+                  timeAgo(poke['timestamp']),
+                  style: const TextStyle(fontSize: 12),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("닫기"),
+          )
+        ],
+      ),
+    );
+  }
+
+  String timeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final diff = now.difference(dateTime);
+
+    if (diff.inSeconds < 60) return '방금 전';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
+    if (diff.inHours < 24) return '${diff.inHours}시간 전';
+    return '${diff.inDays}일 전';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -279,6 +381,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title: const Text('마이페이지'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications),
+            tooltip: '받은 콕찌르기',
+            onPressed: _showPokeListDialog,
+          ),
+
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) async {
@@ -386,6 +494,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text('• 월간 거리: ${_monthlyDistance.toStringAsFixed(2)} km'),
             Text('• 주간 거리: ${_weeklyDistance.toStringAsFixed(2)} km'),
             Text('• 오늘 거리: ${_dailyDistance.toStringAsFixed(2)} km'),
+            SizedBox(height: 30),
+            Text('💰 이번 달 캐시 보상', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('• 적립 캐시: $_monthlyCash 캐시'),
+            SizedBox(height: 20),
+            Text('🎖 누적 캐시 뱃지', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('• 현재 등급: $_cashBadge'),
           ],
         ),
       ),

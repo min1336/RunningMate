@@ -1,6 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'marathon_calendar_screen.dart';
+
 
 class MarathonScreen extends StatefulWidget {
   const MarathonScreen({super.key});
@@ -10,43 +14,96 @@ class MarathonScreen extends StatefulWidget {
 }
 
 class _MarathonScreenState extends State<MarathonScreen> {
-  final List<Map<String, dynamic>> marathonList = [
-    {
-      "title": "2025 서울 러닝 마라톤",
-      "date": "2025년 5월 10일",
-      "location": "여의도 한강공원",
-      "distance": "5km / 10km / Half",
-      "poster": "assets/images/marathon_poster.png",
-    },
-    {
-      "title": "2025 부산 해운대 마라톤",
-      "date": "2025년 6월 20일",
-      "location": "해운대 해수욕장",
-      "distance": "10km / Half / Full",
-      "poster": "assets/images/busan_poster.png",
-    },
-    {
-      "title": "2025 인천 송도 마라톤",
-      "date": "2025년 8월 3일",
-      "location": "송도 센트럴파크",
-      "distance": "10km / Half",
-      "poster": "assets/images/songdo_poster.png"
-    },
-    {
-      "title": "2025 대구 도심 마라톤",
-      "date": "2025년 9월 15일",
-      "location": "대구 시내 일대",
-      "distance": "5km / 10km",
-      "poster": "assets/images/daegu_poster.png",
-    },
-  ];
+  late List<Map<String, dynamic>> marathonList = [];
 
   List<String> appliedTitles = [];
 
   @override
   void initState() {
     super.initState();
+    _loadMarathons();
     _loadAppliedMarathons();
+  }
+
+  Future<void> _loadMarathons() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final snapshot = await FirebaseFirestore.instance.collection('marathons').get();
+    final List<Map<String, dynamic>> marathons = [];
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final participants = List<String>.from(data['participants'] ?? []);
+
+      final isApplied = participants.contains(uid);
+
+      marathons.add({
+        ...data,
+        'id': doc.id,
+        'isApplied': isApplied, // 🔥 참가 여부 추가
+      });
+    }
+
+    setState(() {
+      marathonList = marathons;
+    });
+  }
+
+  Future<void> _applyForMarathon(String marathonId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance.collection('marathons').doc(marathonId).update({
+      'participants': FieldValue.arrayUnion([uid])
+    });
+    await _loadMarathons(); // 상태 동기화
+    setState(() {}); // 화면 갱신
+  }
+
+  Future<void> _cancelMarathon(String marathonId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance.collection('marathons').doc(marathonId).update({
+      'participants': FieldValue.arrayRemove([uid])
+    });
+    await _loadMarathons(); // 상태 갱신
+    setState(() {});
+  }
+
+
+
+  Future<List<Map<String, dynamic>>> getFriendsInMarathon(String marathonId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return [];
+
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final friends = List<String>.from(userDoc['friends'] ?? []);
+
+    final marathonDoc = await FirebaseFirestore.instance.collection('marathons').doc(marathonId).get();
+    final participants = List<String>.from(marathonDoc['participants'] ?? []);
+
+    final List<Map<String, dynamic>> result = [];
+
+    for (final friendUid in friends) {
+      if (participants.contains(friendUid)) {
+        final friendDoc = await FirebaseFirestore.instance.collection('users').doc(friendUid).get();
+        result.add({
+          'uid': friendUid,
+          'nickname': friendDoc['nickname'] ?? '알 수 없음',
+        });
+      }
+    }
+
+    return result;
+  }
+
+  Future<bool> isUserParticipating(String marathonId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+
+    final doc = await FirebaseFirestore.instance.collection('marathons').doc(marathonId).get();
+    final participants = List<String>.from(doc.data()?['participants'] ?? []);
+    return participants.contains(uid);
   }
 
   Future<void> _loadAppliedMarathons() async {
@@ -56,32 +113,18 @@ class _MarathonScreenState extends State<MarathonScreen> {
     });
   }
 
-  Future<void> _applyForMarathon(String title) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      appliedTitles.add(title);
-      prefs.setStringList('appliedMarathons', appliedTitles);
-    });
-  }
-
-  Future<void> _cancelMarathon(String title) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      appliedTitles.remove(title);
-      prefs.setStringList('appliedMarathons', appliedTitles);
-    });
-  }
-
   void _showMarathonDialog(BuildContext context, Map<String, dynamic> marathon) {
     final now = DateTime.now();
+    final marathonId = marathon['id']; // 🔥 여기서 id 꺼냄
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final isApplied = (marathon['participants'] as List<dynamic>).contains(uid);
     DateTime? parsedDate;
     try {
       parsedDate = DateFormat("yyyy년 M월 d일").parseStrict(marathon["date"]);
     } catch (e) {
       parsedDate = null;
     }
-    final dDay = parsedDate != null ? parsedDate.difference(now).inDays : null;
-    final bool isApplied = appliedTitles.contains(marathon['title']);
+    final dDay = parsedDate?.difference(now).inDays;
 
     showDialog(
       context: context,
@@ -168,32 +211,41 @@ class _MarathonScreenState extends State<MarathonScreen> {
                       Text(marathon["distance"]),
                     ],
                   ),
+                  FutureBuilder<List<Map<String, dynamic>>>(
+                    future: getFriendsInMarathon(marathonId),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const SizedBox();
+
+                      final friends = snapshot.data!;
+                      if (friends.isEmpty) return const Text("🙈 참가 중인 친구 없음");
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 16),
+                          const Text("👟 친구 중 참가자", style: TextStyle(fontWeight: FontWeight.bold)),
+                          ...friends.map((f) => Text("• ${f['nickname']}")).toList(),
+                        ],
+                      );
+                    },
+                  ),
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
                     onPressed: () async {
+                      final isApplied = await isUserParticipating(marathonId);
                       if (isApplied) {
-                        await _cancelMarathon(marathon["title"]);
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("‘${marathon["title"]}’ 신청이 취소되었습니다.")),
-                        );
+                        await _cancelMarathon(marathonId);
                       } else {
-                        await _applyForMarathon(marathon["title"]);
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("‘${marathon["title"]}’ 신청 완료!")),
-                        );
+                        await _applyForMarathon(marathonId);
                       }
+
+                      Navigator.pop(context); // 다이얼로그 닫기
+                      setState(() {}); // 재랜더링
                     },
-                    icon: Icon(
-                      isApplied ? Icons.cancel : Icons.check_circle,
-                      color: Colors.white,
-                    ),
+                    icon: Icon(Icons.check),
                     label: Text(isApplied ? "신청 취소하기" : "마라톤 신청하기"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isApplied ? Colors.grey : Colors.red,
-                      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                     ),
                   ),
                 ],
@@ -207,11 +259,26 @@ class _MarathonScreenState extends State<MarathonScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final appliedMarathons = marathonList.where((m) => appliedTitles.contains(m['title'])).toList();
-    final availableMarathons = marathonList.where((m) => !appliedTitles.contains(m['title'])).toList();
+    final appliedMarathons = marathonList.where((m) => m['isApplied'] == true).toList();
+    final availableMarathons = marathonList.where((m) => m['isApplied'] == false).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("🏁 마라톤 신청"), backgroundColor: Colors.redAccent),
+      appBar: AppBar(
+        title: const Text("🏁 마라톤 신청"),
+        backgroundColor: Colors.redAccent,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            tooltip: '마라톤 일정 보기',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MarathonCalendarScreen()),
+              );
+            },
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -240,7 +307,7 @@ class _MarathonScreenState extends State<MarathonScreen> {
     } catch (e) {
       parsedDate = null;
     }
-    final dDay = parsedDate != null ? parsedDate.difference(DateTime.now()).inDays : null;
+    final dDay = parsedDate?.difference(DateTime.now()).inDays;
 
     return GestureDetector(
       onTap: () => _showMarathonDialog(context, marathon),
@@ -302,4 +369,29 @@ class _MarathonScreenState extends State<MarathonScreen> {
       ),
     );
   }
+}
+
+Future<List<Map<String, dynamic>>> getFriendsInMarathon(String marathonId) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return [];
+
+  final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+  final friends = List<String>.from(userDoc['friends'] ?? []);
+
+  final marathonDoc = await FirebaseFirestore.instance.collection('marathons').doc(marathonId).get();
+  final participants = List<String>.from(marathonDoc['participants'] ?? []);
+
+  final List<Map<String, dynamic>> result = [];
+
+  for (final friendUid in friends) {
+    if (participants.contains(friendUid)) {
+      final friendDoc = await FirebaseFirestore.instance.collection('users').doc(friendUid).get();
+      result.add({
+        'uid': friendUid,
+        'nickname': friendDoc['nickname'] ?? '알 수 없음',
+      });
+    }
+  }
+
+  return result;
 }
