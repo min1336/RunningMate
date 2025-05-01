@@ -20,6 +20,8 @@ class RunningScreen extends StatefulWidget {
   final NLatLng startLocation;
   final bool fromSharedRoute;
   final String? routeDocId;
+  final List<NLatLng>? ghostPath;
+  final int? ghostDuration;
 
   final StreamController<Map<String, dynamic>> _statsController = StreamController.broadcast();
 
@@ -29,6 +31,8 @@ class RunningScreen extends StatefulWidget {
     required this.startLocation,
     this.fromSharedRoute = false,
     this.routeDocId,
+    this.ghostPath,
+    this.ghostDuration,
   });
 
   @override
@@ -55,6 +59,8 @@ class _RunningScreenState extends State<RunningScreen> {
   NMarker? _userLocationMarker;
   int _fakeHeartRate = 80; // 초기값
   Timer? _heartRateTimer;
+  NMarker? _ghostMarker;
+  Timer? _ghostTimer;
 
   late RunningTTS _runningTTS;
 
@@ -67,7 +73,44 @@ class _RunningScreenState extends State<RunningScreen> {
     _getCurrentLocationAndFollowUser();
     _runningTTS = RunningTTS(widget);
     _startStatsave();
-    _setRunningStatus(); // ✅ 추가
+    _setRunningStatus();
+  }
+
+  void _startGhostRunner(List<NLatLng> ghostPath, int totalTimeInSeconds) {
+    if (ghostPath.isEmpty || totalTimeInSeconds == 0) return;
+
+    print("👻 고스트 시작! 전체 지점 수: ${ghostPath.length}");
+    print("⏱ 실행 시간: $totalTimeInSeconds초");
+    print("📍 첫 위치: ${ghostPath.first.latitude}, ${ghostPath.first.longitude}");
+
+    int ghostIndex = 0;
+    int pathLength = ghostPath.length;
+
+    _ghostTimer?.cancel();
+    _ghostTimer = Timer.periodic(Duration(milliseconds: (totalTimeInSeconds * 1000 ~/ pathLength)), (timer) async {
+      if (ghostIndex >= pathLength) {
+        timer.cancel();
+        return;
+      }
+
+      final position = ghostPath[ghostIndex];
+
+      // 마커 초기화 또는 업데이트
+      final icon = await NOverlayImage.fromWidget(
+        context: context,
+        widget: const Icon(Icons.directions_walk, color: Colors.blueAccent, size: 45),
+        size: const Size(45, 45),
+      );
+
+      if (_ghostMarker != null) {
+        _mapController?.deleteOverlay(_ghostMarker!.info);
+      }
+
+      _ghostMarker = NMarker(id: 'ghost_runner', position: position, icon: icon);
+      _mapController?.addOverlay(_ghostMarker!);
+
+      ghostIndex++;
+    });
   }
 
   Future<void> _setRunningStatus() async {
@@ -173,13 +216,6 @@ class _RunningScreenState extends State<RunningScreen> {
       ),
     ).listen((Position newPosition) async {
       if (_mapController != null) {
-        // 카메라를 사용자의 새로운 위치로 이동
-        await _mapController!.updateCamera(
-          NCameraUpdate.withParams(
-            target: NLatLng(newPosition.latitude, newPosition.longitude),
-            zoom: 16,
-          ),
-        );
 
         // 기존 마커 삭제 및 새 마커 추가
         if (_userLocationMarker != null) {
@@ -434,6 +470,13 @@ class _RunningScreenState extends State<RunningScreen> {
 
       if (_elapsedTime == 0) {
         _isStart = true;
+
+        if (widget.ghostPath != null &&
+            widget.ghostPath!.isNotEmpty &&
+            widget.ghostDuration != null &&
+            widget.ghostDuration! > 0) {
+          _startGhostRunner(widget.ghostPath!, widget.ghostDuration!);
+        }
       } else {
         _isStart = false;
       }
@@ -511,6 +554,7 @@ class _RunningScreenState extends State<RunningScreen> {
     _timer?.cancel();
     _positionStream?.cancel();
     _stopTimer?.cancel();
+    _ghostTimer?.cancel();
     super.dispose();
   }
 
@@ -590,24 +634,6 @@ class _RunningScreenState extends State<RunningScreen> {
                             color: Colors.white,
                           ),
                         ),
-
-                        const SizedBox(height: 10), // 버튼 간 간격
-
-                        // 🔊 음소거 버튼
-                        FloatingActionButton(
-                          heroTag: "mute_button",
-                          onPressed: () {
-                            setState(() {
-                              _isGuideMuted = !_isGuideMuted;
-                            });
-                          },
-                          backgroundColor: _isGuideMuted ? Colors.grey : Colors.blue,
-                          child: Icon(
-                            _isGuideMuted ? Icons.volume_off : Icons.volume_up,
-                            color: Colors.white,
-                          ),
-                        ),
-
                         const SizedBox(height: 10), // 버튼 간 간격
 
                         // ✅ 설정 버튼 추가 (시점 변경 버튼 삭제)
@@ -627,30 +653,6 @@ class _RunningScreenState extends State<RunningScreen> {
                   )
               )
           ),
-          Positioned(
-            top: 200,
-            right: 13,
-            child: ValueListenableBuilder<double>(
-              valueListenable: _runningTTS.volumeNotifier,
-              builder: (context, volume, _) {
-                return RotatedBox(
-                  quarterTurns: 3, // 세로 슬라이더
-                  child: Slider(
-                    value: volume,
-                    min: 0.0,
-                    max: 1.0,
-                    divisions: 10,
-                    onChanged: (newVolume) {
-                      _runningTTS.setBGMVolume(newVolume);
-                    },
-                    activeColor: Colors.blue,
-                    inactiveColor: Colors.grey[300],
-                  ),
-                );
-              },
-            ),
-          ),
-
           // 정보 표시 박스 - 버튼 포함
           Positioned(
             bottom: 16,
