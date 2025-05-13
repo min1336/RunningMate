@@ -7,6 +7,7 @@ import 'package:flutter/material.dart'; // Flutter UI 구성
 import 'package:flutter_naver_map/flutter_naver_map.dart'; // 네이버 지도 SDK 사용
 import 'package:permission_handler/permission_handler.dart';
 import 'package:run1220/running_screen.dart'; // 권한 요청 관리
+import 'package:geolocator/geolocator.dart';
 import 'countdown.dart'; // 🔥 countdown.dart 임포트
 
 class NaverMapApp extends StatefulWidget {
@@ -705,6 +706,61 @@ class _NaverMapAppState extends State<NaverMapApp> {
                         ),
                       ),
                     ),
+
+                    // 자유 달리기 버튼 추가
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 80,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.directions_run),
+                        label: const Text("🏃 자유 달리기", style: TextStyle(fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[800],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        ),
+                        onPressed: () async {
+                          // 위치 권한 확인 및 요청
+                          var status = await Permission.location.status;
+                          if (!status.isGranted) {
+                            status = await Permission.location.request();
+                            if (!status.isGranted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("📍 위치 권한이 필요합니다.")),
+                              );
+                              return;
+                            }
+                          }
+
+                          try {
+                            // 현재 위치 가져오기
+                            final position = await Geolocator.getCurrentPosition(
+                              desiredAccuracy: LocationAccuracy.high,
+                            );
+
+                            final currentLocation = NLatLng(position.latitude, position.longitude);
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => RunningScreen(
+                                  roadPath: [], // 추천 경로 없음
+                                  startLocation: currentLocation,
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            print("❌ 현재 위치 가져오기 실패: $e");
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("위치 정보를 가져오는 데 실패했습니다.")),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                    
                     if (_isLoading)
                       Container(
                         color: Colors.black45,
