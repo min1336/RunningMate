@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:run1220/route_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'feedback_screen.dart';
 import 'profile.dart';
 import 'Calendar.dart';
 import 'naver.dart';
@@ -215,6 +214,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 class MainScreen extends StatelessWidget {
   const MainScreen({super.key});
 
+  Future<double> getTotalDistance() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return 0.0;
+
+    final snapshot = await FirebaseFirestore.instance
+        .collection('run_records')
+        .where('userId', isEqualTo: uid)
+        .get();
+
+    double total = 0.0;
+    for (var doc in snapshot.docs) {
+      total += (doc.data()['distance'] ?? 0.0);
+    }
+    return total;
+  }
+
+  _LevelInfo _getLevel(double distance) {
+    if (distance < 0.3) {
+      return _LevelInfo('🟤 브론즈', '실버', distance / 0.3, Colors.brown, Colors.white);
+    } else if (distance < 0.5) {
+      return _LevelInfo('⚪ 실버', '골드', (distance - 0.3) / 0.2, Colors.grey.shade300, Colors.black87);
+    } else if (distance < 0.6) {
+      return _LevelInfo('🟡 골드', '다이아', (distance - 0.5) / 0.1, Colors.amber, Colors.black87);
+    } else if (distance < 0.7) {
+      return _LevelInfo('🔷 다이아', '마스터', (distance - 0.6) / 0.1, Colors.lightBlue, Colors.black87);
+    } else {
+      return _LevelInfo('🏆 마스터', '-', 1.0, Colors.teal, Colors.white);
+    }
+  }
+
+
+  double _getRemaining(double distance) {
+    if (distance < 0.3) return 0.3 - distance;
+    if (distance < 0.5) return 0.5 - distance;
+    if (distance < 0.6) return 0.6 - distance;
+    if (distance < 0.7) return 0.7 - distance;
+    return 0.0;
+  }
+
+
   Future<String> getUserLevel() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return '';
@@ -232,33 +271,15 @@ class MainScreen extends StatelessWidget {
     return '';
   }
 
-  Widget buildRecommendation(String level, BuildContext context) {
-    String text;
-    switch (level) {
-      case '초급':
-        text = '🏃‍♂️ 초급자용 짧고 쉬운 코스를 추천합니다.';
-        break;
-      case '중급':
-        text = '🔥 중급자를 위한 코스를 추천합니다!';
-        break;
-      case '고급':
-        text = '💪 고강도 장거리 러닝 코스를 추천합니다!';
-        break;
-      default:
-        text = '설문을 먼저 작성해주세요.';
-    }
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const FeedbackScreen()),
-        );
+  Widget buildRecommendation(String level) {
+    return Text(
+      switch (level) {
+        '초급' => '🏃‍♂️ 초급자용 짧고 쉬운 코스를 추천합니다.',
+        '중급' => '🔥 중급자를 위한 코스를 추천합니다!',
+        '고급' => '💪 고강도 장거리 러닝 코스를 추천합니다!',
+        _ => '설문을 먼저 작성해주세요.',
       },
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-      ),
+      style: const TextStyle(fontSize: 16),
     );
   }
 
@@ -266,10 +287,10 @@ class MainScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(height: 40),
             FutureBuilder<String>(
               future: getUserLevel(),
               builder: (context, snapshot) {
@@ -277,39 +298,102 @@ class MainScreen extends StatelessWidget {
                   return const CircularProgressIndicator();
                 }
                 final level = snapshot.data ?? '';
-                return buildRecommendation(level, context);
+                return buildRecommendation(level);
               },
             ),
-            SizedBox(height: 30),
-            Center(
-              child: Image.asset(
-                'assets/images/character.png',
-                width: 300,
-                height: 300,
-                fit: BoxFit.contain,
-              ),
+            const SizedBox(height: 30),
+
+            FutureBuilder<double>(
+              future: getTotalDistance(),
+              builder: (context, snapshot) {
+                final distance = snapshot.data ?? 0.0;
+                final level = _getLevel(distance);
+                final remaining = _getRemaining(distance);
+
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: level.bgColor,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(level.label,
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: level.textColor)),
+                      const SizedBox(height: 8),
+                      Text(
+                        distance.toStringAsFixed(2),
+                        style: TextStyle(fontSize: 44, fontWeight: FontWeight.bold, color: level.textColor),
+                      ),
+                      Text("총 거리 (킬로미터)", style: TextStyle(fontSize: 16, color: level.textColor)),
+                      const SizedBox(height: 16),
+                      LinearProgressIndicator(
+                        value: level.progress,
+                        minHeight: 8,
+                        valueColor: AlwaysStoppedAnimation<Color>(level.textColor),
+                        backgroundColor: level.textColor.withOpacity(0.2),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        level.nextLabel != '-'
+                            ? "다음 레벨(${level.nextLabel})까지 ${remaining.toStringAsFixed(2)} km 남음"
+                            : "최고 레벨 도달 🎉",
+                        style: TextStyle(fontSize: 14, color: level.textColor),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-            SizedBox(height: 30),
+
+            const SizedBox(height: 40),
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => NaverMapApp()),
+                  MaterialPageRoute(builder: (context) => const NaverMapApp()),
                 );
               },
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
               ),
-              child: Text('🏃 달리기 시작'),
+              child: const Text('🏃 달리기 시작'),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
 }
+
+class _LevelInfo {
+  final String label;
+  final String nextLabel;
+  final double progress;
+  final Color bgColor;
+  final Color textColor;
+
+  _LevelInfo(this.label, this.nextLabel, this.progress, this.bgColor, this.textColor);
+}
+
+
+
+
+
 
 class BattleScreen extends StatelessWidget {
   const BattleScreen({super.key});
