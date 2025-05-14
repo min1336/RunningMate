@@ -64,7 +64,6 @@ class _RunningScreenState extends State<RunningScreen> {
 
   late RunningTTS _runningTTS;
 
-  static const double MIN_SPEED_THRESHOLD = 0.5; // 0.5m/s 이하 속도 무시
   static const double MIN_ACCURACY_THRESHOLD = 10.0; // 10m 이하 정확도만 사용
 
   @override
@@ -287,7 +286,7 @@ class _RunningScreenState extends State<RunningScreen> {
             calories: _caloriesBurned,
             routePath: _traveledPath,
             averageHeartRate: _averageHeartRate,
-            runRecordId: docRef.id, // ✅ 전달
+            runRecordId: docRef.id, // 전달
             fromSharedRoute: widget.fromSharedRoute,
             routeDocId: widget.routeDocId,
           ),
@@ -354,26 +353,6 @@ class _RunningScreenState extends State<RunningScreen> {
             _recentPositions.length
             : 0;
 
-
-
-// 평균 속도 및 위치 변화량 검사
-        if (avgSpeed < MIN_SPEED_THRESHOLD &&
-            _calculateDistanceBetween(
-              NLatLng(_recentPositions.first.latitude, _recentPositions.first.longitude),
-              NLatLng(_recentPositions.last.latitude, _recentPositions.last.longitude),
-            ) < 1.5) {
-          if (_stopTimer == null) {
-            _stopTimer = Timer(const Duration(seconds: 3), () {
-              if (_isRunning && !_isPaused) {
-                _stopRun();
-              }
-            });
-          }
-        } else {
-          _stopTimer?.cancel();
-          _stopTimer = null;
-        }
-
         setState(() {
           _totalDistance += distance;
           _lastPosition = position;
@@ -419,7 +398,7 @@ class _RunningScreenState extends State<RunningScreen> {
 
   String _formatPace() {
     double distanceInKm = _totalDistance / 1000;
-    if (distanceInKm <= 0) return "--:--";
+    if (distanceInKm <= 0.01) return "--:--";
     double paceSeconds = _elapsedTime / distanceInKm; // 초/킬로미터
     int minutes = paceSeconds ~/ 60;
     int seconds = (paceSeconds % 60).round();
@@ -459,7 +438,7 @@ class _RunningScreenState extends State<RunningScreen> {
     }
 
     double timeInHours = _elapsedTime / 3600.0;
-    return met * weight * timeInHours;
+    return double.parse((met * weight * timeInHours).toStringAsFixed(1));
   }
 
 
