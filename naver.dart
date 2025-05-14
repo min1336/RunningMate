@@ -7,7 +7,6 @@ import 'package:flutter/material.dart'; // Flutter UI 구성
 import 'package:flutter_naver_map/flutter_naver_map.dart'; // 네이버 지도 SDK 사용
 import 'package:permission_handler/permission_handler.dart';
 import 'package:run1220/running_screen.dart'; // 권한 요청 관리
-import 'package:geolocator/geolocator.dart';
 import 'countdown.dart'; // 🔥 countdown.dart 임포트
 
 class NaverMapApp extends StatefulWidget {
@@ -98,7 +97,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
     _mapController!.addOverlay(NPathOverlay(
       id: 'full_route',
       // 오버레이 ID
-      color: Colors.teal,
+      color: Colors.lightGreen,
       // 경로 색상
       width: 8,
       // 경로 선 두께
@@ -329,7 +328,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.black,
+          color: Colors.white,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
@@ -339,7 +338,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
             )
           ],
         ),
-        child: const Icon(Icons.arrow_back, color: Colors.white),
+        child: const Icon(Icons.arrow_back, color: Colors.black),
       ),
     );
   }
@@ -364,8 +363,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
                           target: NLatLng(37.5665, 126.9780),
                           zoom: 10,
                         ),
-                        nightModeEnable: true,
-                        mapType: NMapType.navi,
                         locationButtonEnable: false,
                         logoClickEnable: false,
                       ),
@@ -387,7 +384,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                               Expanded(
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.black,
+                                    color: Colors.white,
                                     borderRadius: BorderRadius.circular(30),
                                     boxShadow: [
                                       BoxShadow(
@@ -399,10 +396,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                   ),
                                   child: TextField(
                                     controller: _startController,
-                                    style: TextStyle(color: Colors.grey),
                                     decoration: InputDecoration(
                                       hintText: '출발지 주소 입력',
-                                      hintStyle: const TextStyle(color: Colors.grey),
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(30),
                                         borderSide: BorderSide.none,
@@ -432,7 +427,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                   vertical: 4, horizontal: 8),
                               height: 200,
                               decoration: BoxDecoration(
-                                color: Colors.black,
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
@@ -465,14 +460,14 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 16,
-                                                color: Colors.white,
+                                                color: Colors.black,
                                               ),
                                             ),
                                             TextSpan(
                                               text: '\n$address',
                                               style: const TextStyle(
                                                 fontSize: 14,
-                                                color: Colors.white,
+                                                color: Colors.grey,
                                               ),
                                             ),
                                           ],
@@ -488,7 +483,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                           Container(
                             padding: EdgeInsets.symmetric(horizontal: 16),
                             decoration: BoxDecoration(
-                              color: Colors.black,
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(30),
                               boxShadow: [
                                 BoxShadow(
@@ -502,12 +497,12 @@ class _NaverMapAppState extends State<NaverMapApp> {
                               child: DropdownButton<String>(
                                 value: _selectedDistance,
                                 hint: const Text('러닝 모드 선택'),
-                                dropdownColor: Colors.black,
+                                dropdownColor: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: Colors.black,
                                 ),
                                 items: ['초급', '중급', '고급'].map((level) {
                                   return DropdownMenuItem<String>(
@@ -534,7 +529,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             child: Text(
                               '${_calculatedDistance.toStringAsFixed(2)} km',
                               style: const TextStyle(
-                                 color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                                  fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
@@ -684,7 +679,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                 },
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.black,
+                                    color: Colors.red,
                                     borderRadius: const BorderRadius.only(
                                       topRight: Radius.circular(0),
                                       bottomRight: Radius.circular(0),
@@ -706,61 +701,6 @@ class _NaverMapAppState extends State<NaverMapApp> {
                         ),
                       ),
                     ),
-
-                    // 자유 달리기 버튼 추가
-                    Positioned(
-                      left: 16,
-                      right: 16,
-                      bottom: 80,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.directions_run),
-                        label: const Text("🏃 자유 달리기", style: TextStyle(fontSize: 16)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[800],
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                        ),
-                        onPressed: () async {
-                          // 위치 권한 확인 및 요청
-                          var status = await Permission.location.status;
-                          if (!status.isGranted) {
-                            status = await Permission.location.request();
-                            if (!status.isGranted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("📍 위치 권한이 필요합니다.")),
-                              );
-                              return;
-                            }
-                          }
-
-                          try {
-                            // 현재 위치 가져오기
-                            final position = await Geolocator.getCurrentPosition(
-                              desiredAccuracy: LocationAccuracy.high,
-                            );
-
-                            final currentLocation = NLatLng(position.latitude, position.longitude);
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RunningScreen(
-                                  roadPath: [], // 추천 경로 없음
-                                  startLocation: currentLocation,
-                                ),
-                              ),
-                            );
-                          } catch (e) {
-                            print("❌ 현재 위치 가져오기 실패: $e");
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("위치 정보를 가져오는 데 실패했습니다.")),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    
                     if (_isLoading)
                       Container(
                         color: Colors.black45,
