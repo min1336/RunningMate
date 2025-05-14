@@ -8,6 +8,8 @@ import 'package:flutter_naver_map/flutter_naver_map.dart'; // 네이버 지도 S
 import 'package:permission_handler/permission_handler.dart';
 import 'package:run1220/running_screen.dart'; // 권한 요청 관리
 import 'countdown.dart'; // 🔥 countdown.dart 임포트
+import 'package:geolocator/geolocator.dart';
+
 
 class NaverMapApp extends StatefulWidget {
   const NaverMapApp({super.key}); // StatefulWidget 생성자
@@ -303,11 +305,102 @@ class _NaverMapAppState extends State<NaverMapApp> {
     }
   }
 
+  // 위치 권한 요청 및 현재 위치 얻기
+  Future<NLatLng?> _getCurrentPosition() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return null;
+    }
+    if (permission == LocationPermission.deniedForever) return null;
+
+    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    return NLatLng(position.latitude, position.longitude);
+  }
+
+
+
+
+
+
+
+
+
+
+  Future<String?> _getAddressFromLatLng(NLatLng pos) async {
+    const clientId = 'rz7lsxe3oo';
+    const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg';
+    final url =
+        'https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${pos.longitude},${pos.latitude}&orders=roadaddr,addr&output=json';
+    final response = await http.get(Uri.parse(url), headers: {
+      'X-NCP-APIGW-API-KEY-ID': clientId,
+      'X-NCP-APIGW-API-KEY': clientSecret,
+    });
+    var position = await Geolocator.getCurrentPosition();
+    print('reverse geocode status: ${response.statusCode}');
+    print('reverse geocode body: ${response.body}');
+    print('내 위치: ${position.latitude}, ${position.longitude}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      debugPrint(jsonEncode(data));
+      if (data['results'] != null && data['results'].isNotEmpty) {
+        final road = data['results'].firstWhere((e) => e['name'] == 'roadaddr', orElse: () => null);
+        final addr = data['results'].firstWhere((e) => e['name'] == 'addr', orElse: () => null);
+        final target = road ?? addr;
+        if (target != null) {
+          final region = target['region'];
+          final land = target['land'];
+          String address = '';
+          if (region != null) {
+            address += '${region['area1']['name']} ${region['area2']['name']} ${region['area3']['name']}';
+          }
+          if (land != null) {
+            if (land['name'] != null) address += ' ${land['name']}';
+            if (land['number1'] != null) address += ' ${land['number1']}';
+          }
+          return address.trim().isEmpty ? null : address.trim();
+        }
+      }
+    }
+    return null;
+  }
+
+
+
+
+
+
+
+  NLatLng? _myPosition;
+
   @override
   void initState() {
     super.initState();
-    _initializeNaverMap(); // 🔥 추가
-    _permission(); // 기존 위치 권한 요청
+    _initializeNaverMap();
+    _permission();
+    _setInitialPosition(); // 추가
+  }
+
+  Future<void> _setInitialPosition() async {
+    NLatLng? pos = await _getCurrentPosition();
+    if (pos != null) {
+      setState(() {
+        _myPosition = pos;
+      });
+      // 지도 컨트롤러가 준비된 뒤 카메라 이동
+      if (_mapController != null) {
+        _mapController!.updateCamera(
+          NCameraUpdate.withParams(
+            target: pos,
+            zoom: 15,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _initializeNaverMap() async {
@@ -358,16 +451,25 @@ class _NaverMapAppState extends State<NaverMapApp> {
                 child: Stack(
                   children: [
                     NaverMap(
-                      options: const NaverMapViewOptions(
+                      options: NaverMapViewOptions(
+                        rotationGesturesEnable: false,
                         initialCameraPosition: NCameraPosition(
-                          target: NLatLng(37.5665, 126.9780),
-                          zoom: 10,
+                          target: _myPosition ?? NLatLng(37.5665, 126.9780),
+                          zoom: 15,
                         ),
-                        locationButtonEnable: false,
-                        logoClickEnable: false,
+                        // ...
                       ),
                       onMapReady: (controller) {
                         _mapController = controller;
+                        if (_myPosition != null) {
+                          _mapController!.updateCamera(
+                            NCameraUpdate.withParams(
+                              target: _myPosition!,
+                              zoom: 15,
+                            ),
+                          );
+                        }
+                        _mapController?.setLocationTrackingMode(NLocationTrackingMode.follow);
                       },
                     ),
                     // 상단 주소 입력 영역
@@ -381,41 +483,51 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             children: [
                               _buildBackButton(),
                               const SizedBox(width: 8),
+                              IconButton(
+                                icon: Icon(Icons.my_location, color: Colors.blue),
+                                tooltip: "내 위치로 입력",
+                                onPressed: () async {
+                                  // 1. 현재 위치 좌표 얻기
+                                  NLatLng? myPos = await _getCurrentPosition();
+                                  if (myPos != null) {
+                                    // 2. 좌표 → 주소 변환 (reverse geocoding)
+                                    String? address = await _getAddressFromLatLng(myPos);
+                                    if (address != null) {
+                                      // 3. 검색창에 주소 입력
+                                      setState(() {
+                                        _startController.text = address;
+                                        _suggestedAddresses.clear();
+                                      });
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text("내 위치의 주소를 찾을 수 없습니다.")),
+                                      );
+                                    }
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text("내 위치를 가져올 수 없습니다.")),
+                                    );
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              // 검색창 폭 줄이기 (flex: 1 → flex: 7 등으로 조정)
                               Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(30),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 4,
-                                        offset: Offset(0, 2),
-                                      )
-                                    ],
-                                  ),
-                                  child: TextField(
-                                    controller: _startController,
-                                    decoration: InputDecoration(
-                                      hintText: '출발지 주소 입력',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(30),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 20, vertical: 10),
-                                      suffixIcon: IconButton(
-                                        icon: Icon(Icons.clear),
-                                        onPressed: () {
-                                          _startController.clear();
-                                          setState(() {
-                                            _suggestedAddresses.clear();
-                                          });
-                                        },
-                                      ),
+                                flex: 7,
+                                child: TextField(
+                                  controller: _startController,
+                                  decoration: InputDecoration(
+                                    hintText: '출발지 입력',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(20),
                                     ),
-                                    onChanged: _getSuggestions,
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                                    filled: true,
+                                    fillColor: Colors.white,
                                   ),
+                                  onChanged: (value) {
+                                    _getSuggestions(value);
+                                  },
                                 ),
                               ),
                             ],
