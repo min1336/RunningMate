@@ -34,6 +34,14 @@ class FinishScreen extends StatelessWidget {
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
+  String _formatPace(double distance, int time) {
+    if (distance <= 0 || time <= 0) return "--:--";
+    final paceSeconds = time / distance; // 초/km
+    final minutes = paceSeconds ~/ 60;
+    final seconds = (paceSeconds % 60).round();
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _submitRouteRating(BuildContext context, double newRating) async {
     try {
       if (routeDocId == null) {
@@ -289,7 +297,7 @@ class FinishScreen extends StatelessWidget {
                       _buildInfoItem(_formatTime(time), "시간"),
                       _buildInfoItem("${calories.toInt()}", "칼로리"),
                       _buildInfoItem(
-                        distance > 0 ? "${(time ~/ distance).toInt()}" : "--",
+                        _formatPace(distance, time),
                         "평균페이스",
                       ),
                       _buildInfoItem(
