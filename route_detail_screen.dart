@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:run1220/running_screen.dart';
+import 'dart:math';
 
 class RouteDetailScreen extends StatelessWidget {
   final Map<String, dynamic> route;
@@ -37,15 +38,12 @@ class RouteDetailScreen extends StatelessWidget {
     for (int i = 0; i < fullStars; i++) {
       stars.add(const Icon(Icons.star, color: Colors.amber, size: 20));
     }
-
     if (hasHalfStar) {
       stars.add(const Icon(Icons.star_half, color: Colors.amber, size: 20));
     }
-
     for (int i = 0; i < emptyStars; i++) {
       stars.add(const Icon(Icons.star_border, color: Colors.amber, size: 20));
     }
-
     return stars;
   }
 
@@ -60,14 +58,16 @@ class RouteDetailScreen extends StatelessWidget {
     final userPlayed = route['userPlayedCount'] ?? 0;
     final communityPlayed = route['communityPlayedCount'] ?? 0;
     final location = route['location'] ?? '위치 정보 없음';
-
     final ghostPath = path;
     final ghostDuration = _parseTime(time);
+
+    final evaluations = List<Map<String, dynamic>>.from(route['Evaluation'] ?? []);
+    evaluations.sort((a, b) => (b['rankingScore'] ?? 0).compareTo(a['rankingScore'] ?? 0));
+    final top10 = evaluations.take(10).toList();
 
     return Scaffold(
       body: Stack(
         children: [
-          // 지도
           NaverMap(
             options: NaverMapViewOptions(
               initialCameraPosition: NCameraPosition(
@@ -88,8 +88,6 @@ class RouteDetailScreen extends StatelessWidget {
               }
             },
           ),
-
-          // 닫기 버튼
           Positioned(
             top: 45,
             left: 20,
@@ -106,25 +104,17 @@ class RouteDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          // 위로 덮는 상세 정보 UI
           DraggableScrollableSheet(
             initialChildSize: 0.4,
             minChildSize: 0.2,
-            maxChildSize: 0.85,
+            maxChildSize: 0.9,
             builder: (context, scrollController) {
               return Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 10,
-                      offset: Offset(0, -2),
-                    ),
-                  ],
+                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, -2))],
                 ),
                 child: ListView(
                   controller: scrollController,
@@ -157,21 +147,19 @@ class RouteDetailScreen extends StatelessWidget {
                           );
                           return;
                         }
-                        if (path.isNotEmpty) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => RunningScreen(
-                                roadPath: path,
-                                startLocation: path.first,
-                                fromSharedRoute: true,
-                                routeDocId: route['docId'],
-                                ghostPath: ghostPath,
-                                ghostDuration: ghostDuration,
-                              ),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => RunningScreen(
+                              roadPath: path,
+                              startLocation: path.first,
+                              fromSharedRoute: true,
+                              routeDocId: route['docId'],
+                              ghostPath: ghostPath,
+                              ghostDuration: ghostDuration,
                             ),
-                          );
-                        }
+                          ),
+                        );
                       },
                       child: const Text('루트 시작'),
                     ),
@@ -179,33 +167,36 @@ class RouteDetailScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Column(
-                          children: [
-                            Text('$communityPlayed', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            const Text('커뮤니티가 플레이한 수'),
-                          ],
-                        ),
-                        Column(
-                          children: [
-                            Row(
-                              children: [
-                                Text(rating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold)),
-                                Text(' ($ratingCount)'),
-                              ],
-                            ),
-                            Row(children: _buildStarRating(rating)),
-                          ],
-                        ),
-                        Column(
-                          children: [
-                            Text('$userPlayed', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            const Text('내가 플레이한 수'),
-                          ],
-                        ),
+                        Column(children: [Text('$communityPlayed', style: TextStyle(fontWeight: FontWeight.bold)), Text('커뮤니티가 플레이한 수')]),
+                        Column(children: [Row(children: [Text(rating.toStringAsFixed(1), style: TextStyle(fontWeight: FontWeight.bold)), Text(' ($ratingCount)')]), Row(children: _buildStarRating(rating))]),
+                        Column(children: [Text('$userPlayed', style: TextStyle(fontWeight: FontWeight.bold)), Text('내가 플레이한 수')]),
                       ],
                     ),
                     const SizedBox(height: 20),
                     Text('장소: $location'),
+                    const SizedBox(height: 20),
+                    const Text("🏁 최고 기록", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ...top10.asMap().entries.map((entry) {
+                      final index = entry.key + 1;
+                      final r = entry.value;
+                      final medal = index == 1
+                          ? '🥇'
+                          : index == 2
+                          ? '🥈'
+                          : index == 3
+                          ? '🥉'
+                          : '$index등';
+
+                      return ListTile(
+                        title: Text(
+                          "$medal ${(r['nickname'] ?? '알 수 없음').toString()}",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          "속도: ${(r['speed'] ?? '--').toString()} m/s | 시간: ${(r['time'] ?? '--').toString()}초 | 거리: ${((r['distance'] ?? 0.0) as num).toStringAsFixed(2)}km",
+                        ),
+                      );
+                    }),
                   ],
                 ),
               );

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:run1220/home_screen.dart';
+import 'dart:math';
 
 class FinishScreen extends StatelessWidget {
   final double distance;
@@ -30,36 +31,64 @@ class FinishScreen extends StatelessWidget {
   String _formatTime(int seconds) {
     int minutes = seconds ~/ 60;
     int remainingSeconds = seconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString()
-        .padLeft(2, '0')}';
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _submitRouteRating(BuildContext context,
-      double newRating) async {
+  Future<void> _submitRouteRating(BuildContext context, double newRating) async {
     try {
-      if (routeDocId == null) return;
+      if (routeDocId == null) {
+        print('❌ routeDocId is null');
+        return;
+      }
 
-      final docRef = FirebaseFirestore.instance.collection('shared_routes').doc(
-          routeDocId);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        print('❌ uid is null');
+        return;
+      }
+
+      final docRef = FirebaseFirestore.instance.collection('shared_routes').doc(routeDocId);
       final snapshot = await docRef.get();
-
-      if (!snapshot.exists) return;
+      if (!snapshot.exists) {
+        print('❌ shared_routes doc does not exist');
+        return;
+      }
 
       final data = snapshot.data()!;
       final double currentRating = (data['rating'] ?? 0).toDouble();
       final int currentCount = (data['ratingCount'] ?? 0).toInt();
       final int currentUserCount = (data['userPlayedCount'] ?? 0).toInt();
-      final int currentCommunityCount = (data['communityPlayedCount'] ?? 0)
-          .toInt();
+      final int currentCommunityCount = (data['communityPlayedCount'] ?? 0).toInt();
 
-      final double newAverage = ((currentRating * currentCount) + newRating) /
-          (currentCount + 1);
+      final double newAverage = ((currentRating * currentCount) + newRating) / (currentCount + 1);
 
       await docRef.update({
         'rating': double.parse(newAverage.toStringAsFixed(2)),
         'ratingCount': currentCount + 1,
         'userPlayedCount': currentUserCount + 1,
         'communityPlayedCount': currentCommunityCount + 1,
+      });
+
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final nickname = userDoc['nickname'] ?? '익명';
+      final averageSpeed = (distance * 1000) / time;
+
+      print('🔥 routeDocId: $routeDocId');
+      print('🔥 uid: $uid');
+      print('🔥 speed: $averageSpeed');
+
+      await docRef.update({
+        'Evaluation': FieldValue.arrayUnion([
+          {
+            'userId': uid,
+            'nickname': nickname,
+            'distance': distance,
+            'time': time,
+            'speed': double.parse(averageSpeed.toStringAsFixed(2)),
+            'rankingScore': double.parse((averageSpeed * log(distance * 1000 + 1)).toStringAsFixed(2)),
+            'ratedAt': Timestamp.now(),
+          }
+        ])
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
