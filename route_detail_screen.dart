@@ -66,7 +66,8 @@ class RouteDetailScreen extends StatelessWidget {
     final top10 = evaluations.take(10).toList();
 
     return Scaffold(
-      body: Stack(
+      body: SafeArea(
+        child: Stack(
         children: [
           NaverMap(
             options: NaverMapViewOptions(
@@ -167,9 +168,36 @@ class RouteDetailScreen extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Column(children: [Text('$communityPlayed', style: TextStyle(fontWeight: FontWeight.bold)), Text('커뮤니티가 플레이한 수')]),
-                        Column(children: [Row(children: [Text(rating.toStringAsFixed(1), style: TextStyle(fontWeight: FontWeight.bold)), Text(' ($ratingCount)')]), Row(children: _buildStarRating(rating))]),
-                        Column(children: [Text('$userPlayed', style: TextStyle(fontWeight: FontWeight.bold)), Text('내가 플레이한 수')]),
+                        Flexible(
+                          child: Column(
+                            children: [
+                              Text('$communityPlayed', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text('커뮤니티가 플레이한 수'),
+                            ],
+                          ),
+                        ),
+                        Flexible(
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(rating.toStringAsFixed(1), style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text(' ($ratingCount)'),
+                                ],
+                              ),
+                              Row(children: _buildStarRating(rating)),
+                            ],
+                          ),
+                        ),
+                        Flexible(
+                          child: Column(
+                            children: [
+                              Text('$userPlayed', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text('내가 플레이한 수'),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -203,6 +231,7 @@ class RouteDetailScreen extends StatelessWidget {
             },
           ),
         ],
+      ),
       ),
     );
   }
