@@ -332,17 +332,26 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
   Future<String?> _getAddressFromLatLng(NLatLng pos) async {
     const clientId = 'rz7lsxe3oo';
-    const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg';
+    const clientSecret = '74u4U9CVPUwoi2KNmDJ9LXDufwQb2TAZgRvXGBzP';
     final url =
         'https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${pos.longitude},${pos.latitude}&orders=roadaddr,addr&output=json';
-    final response = await http.get(Uri.parse(url), headers: {
-      'X-NCP-APIGW-API-KEY-ID': clientId,
-      'X-NCP-APIGW-API-KEY': clientSecret,
-    });
-    var position = await Geolocator.getCurrentPosition();
+
+    // final response = await http.get(Uri.parse(url), headers: {
+    //   'X-NCP-APIGW-API-KEY-ID': clientId,
+    //   'X-NCP-APIGW-API-KEY': clientSecret,
+    // });
+
+    // 코드 내 API 헤더 확인
+    var response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'X-NCP-APIGW-API-KEY-ID': clientId,  // 미리 정의된 상수 사용
+        'X-NCP-APIGW-API-KEY': clientSecret, // 미리 정의된 상수 사용
+      },
+    );
+
     print('reverse geocode status: ${response.statusCode}');
     print('reverse geocode body: ${response.body}');
-    print('내 위치: ${position.latitude}, ${position.longitude}');
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -366,6 +375,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
         }
       }
     }
+
     return null;
   }
 
@@ -413,6 +423,32 @@ class _NaverMapAppState extends State<NaverMapApp> {
     if (!status.isGranted) {
       await Permission.location.request();
     }
+  }
+
+  Widget myLocationButton({VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white,            // 흰색 배경
+          shape: BoxShape.circle,         // 동그라미
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.my_location,              // 내 위치 찾기 아이콘
+          color: Colors.blueAccent,       // 아이콘 색상 (원하는 색으로 변경)
+          size: 28,
+        ),
+      ),
+    );
   }
 
   Widget _buildBackButton() {
@@ -483,32 +519,47 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             children: [
                               _buildBackButton(),
                               const SizedBox(width: 8),
-                              IconButton(
-                                icon: Icon(Icons.my_location, color: Colors.blue),
-                                tooltip: "내 위치로 입력",
-                                onPressed: () async {
-                                  // 1. 현재 위치 좌표 얻기
-                                  NLatLng? myPos = await _getCurrentPosition();
-                                  if (myPos != null) {
-                                    // 2. 좌표 → 주소 변환 (reverse geocoding)
-                                    String? address = await _getAddressFromLatLng(myPos);
-                                    if (address != null) {
-                                      // 3. 검색창에 주소 입력
-                                      setState(() {
-                                        _startController.text = address;
-                                        _suggestedAddresses.clear();
-                                      });
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.15),
+                                      blurRadius: 4,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  icon: Icon(Icons.my_location, color: Colors.blueAccent, size: 24),
+                                  tooltip: "내 위치로 입력",
+                                  onPressed: () async {
+                                    // 1. 현재 위치 좌표 얻기
+                                    NLatLng? myPos = await _getCurrentPosition();
+                                    if (myPos != null) {
+                                      // 2. 좌표 → 주소 변환 (reverse geocoding)
+                                      String? address = await _getAddressFromLatLng(myPos);
+                                      if (address != null) {
+                                        // 3. 검색창에 주소 입력
+                                        setState(() {
+                                          _startController.text = address;
+                                          _suggestedAddresses.clear();
+                                        });
+                                      } else {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text("내 위치의 주소를 찾을 수 없습니다.")),
+                                        );
+                                      }
                                     } else {
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text("내 위치의 주소를 찾을 수 없습니다.")),
+                                        SnackBar(content: Text("내 위치를 가져올 수 없습니다.")),
                                       );
                                     }
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text("내 위치를 가져올 수 없습니다.")),
-                                    );
-                                  }
-                                },
+                                  },
+                                ),
                               ),
                               const SizedBox(width: 8),
                               // 검색창 폭 줄이기 (flex: 1 → flex: 7 등으로 조정)
@@ -524,6 +575,17 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                     contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                                     filled: true,
                                     fillColor: Colors.white,
+                                    suffixIcon: _startController.text.isNotEmpty
+                                        ? IconButton(
+                                      icon: Icon(Icons.clear),
+                                      onPressed: () {
+                                        setState(() {
+                                          _startController.clear();
+                                          _suggestedAddresses.clear();
+                                        });
+                                      },
+                                    )
+                                        : null,
                                   ),
                                   onChanged: (value) {
                                     _getSuggestions(value);
