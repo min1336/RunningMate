@@ -321,25 +321,11 @@ class _NaverMapAppState extends State<NaverMapApp> {
     return NLatLng(position.latitude, position.longitude);
   }
 
-
-
-
-
-
-
-
-
-
   Future<String?> _getAddressFromLatLng(NLatLng pos) async {
-    const clientId = 'rz7lsxe3oo';
+    const clientId = 'bqylkqjcha';
     const clientSecret = '74u4U9CVPUwoi2KNmDJ9LXDufwQb2TAZgRvXGBzP';
     final url =
-        'https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${pos.longitude},${pos.latitude}&orders=roadaddr,addr&output=json';
-
-    // final response = await http.get(Uri.parse(url), headers: {
-    //   'X-NCP-APIGW-API-KEY-ID': clientId,
-    //   'X-NCP-APIGW-API-KEY': clientSecret,
-    // });
+        'https://maps.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${pos.longitude},${pos.latitude}&orders=roadaddr,addr&output=json';
 
     // 코드 내 API 헤더 확인
     var response = await http.get(
@@ -354,7 +340,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
     print('reverse geocode body: ${response.body}');
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      final decodedBody = utf8.decode(response.bodyBytes);
+      final data = jsonDecode(decodedBody);
       debugPrint(jsonEncode(data));
       if (data['results'] != null && data['results'].isNotEmpty) {
         final road = data['results'].firstWhere((e) => e['name'] == 'roadaddr', orElse: () => null);
@@ -880,8 +867,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                       right: 16,
                       bottom: 80,
                       child: ElevatedButton.icon(
-                        icon: const Icon(Icons.directions_run),
-                        label: const Text("🏃 자유 달리기", style: TextStyle(fontSize: 16)),
+                        label: const Text("자유 달리기", style: TextStyle(fontSize: 16)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.grey[800],
                           foregroundColor: Colors.white,
