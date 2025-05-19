@@ -61,6 +61,8 @@ class _RunningScreenState extends State<RunningScreen> {
   Timer? _heartRateTimer;
   NMarker? _ghostMarker;
   Timer? _ghostTimer;
+  bool _isTilted = false;
+  bool _isLocked = false; // 화면 잠금 여부
 
   late RunningTTS _runningTTS;
 
@@ -598,22 +600,6 @@ class _RunningScreenState extends State<RunningScreen> {
                   child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // 🔒 잠금 버튼
-                        FloatingActionButton(
-                          heroTag: "lock_button",
-                          onPressed: () {
-                            setState(() {
-                              // 🔒 잠금 기능 추가 (예: 화면 잠금)
-                              _isRunning = !_isRunning;
-                            });
-                          },
-                          backgroundColor: _isRunning ? Colors.red : Colors.green,
-                          child: Icon(
-                            _isRunning ? Icons.lock : Icons.lock_open,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 10), // 버튼 간 간격
 
                         // ✅ 설정 버튼 추가 (시점 변경 버튼 삭제)
                         FloatingActionButton(
@@ -627,6 +613,45 @@ class _RunningScreenState extends State<RunningScreen> {
                           },
                           backgroundColor: Colors.orange,
                           child: const Icon(Icons.settings, color: Colors.white), // ⚙️ 설정 아이콘
+                        ),
+                        const SizedBox(height: 10), // 버튼 간 간격
+                        // 🔒 잠금 버튼
+                        FloatingActionButton(
+                          heroTag: "lock_button",
+                          onPressed: () {
+                            setState(() {
+                              _isLocked = !_isLocked;
+                            });
+                          },
+                          backgroundColor: _isLocked ? Colors.red : Colors.green,
+                          child: Icon(
+                            _isLocked ? Icons.lock : Icons.lock_open,
+                            color: Colors.white,
+                          ),
+                        ),
+
+                        const SizedBox(height: 10), // 버튼 간 간격
+
+                        // 🧭 기울기 설정 버튼 (Tilt 45도)
+                        // 버튼 리스트 안에 추가된 기울기 버튼
+                        FloatingActionButton(
+                          heroTag: "tilt_button",
+                          onPressed: () async {
+                            if (_mapController != null) {
+                              final newTilt = _isTilted ? 0.0 : 60.0;
+                              await _mapController!.updateCamera(
+                                NCameraUpdate.withParams(tilt: newTilt),
+                              );
+                              setState(() {
+                                _isTilted = !_isTilted;
+                              });
+                            }
+                          },
+                          backgroundColor: _isTilted ? Colors.grey : Colors.purple,
+                          child: Icon(
+                            _isTilted ? Icons.refresh : Icons.threed_rotation,
+                            color: Colors.white,
+                          ),
                         ),
                       ]
                   )
