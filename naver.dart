@@ -665,7 +665,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                   fontWeight: FontWeight.bold,
                                   color: Colors.black,
                                 ),
-                                items: ['초급', '중급', '상급'].map((level) {
+                                items: ['초급 (1~3km)', '중급 (3~5km)', '상급 (5~10km)'].map((level) {
                                   return DropdownMenuItem<String>(
                                     value: level,
                                     child: Container(
@@ -729,16 +729,16 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
                                     double minDistance, maxDistance;
                                     switch (_selectedDistance) {
-                                      case '초급':
-                                        minDistance = 500;
-                                        maxDistance = 2500;
+                                      case '초급 (1~3km)':
+                                        minDistance = 1000;
+                                        maxDistance = 3000;
                                         break;
-                                      case '중급':
-                                        minDistance = 2500;
-                                        maxDistance = 4500;
+                                      case '중급 (3~5km)':
+                                        minDistance = 3050;
+                                        maxDistance = 5000;
                                         break;
-                                      case '상급':
-                                        minDistance = 4500;
+                                      case '상급 (5~10km)':
+                                        minDistance = 5050;
                                         maxDistance = 7000;
                                         break;
                                       default:
