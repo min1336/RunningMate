@@ -11,10 +11,8 @@ import 'package:run1220/marathon_screen.dart';
 import 'package:run1220/friend_screen.dart';
 import 'package:run1220/recommended_routes_slider.dart';
 
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -105,7 +103,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _loadProfileData();
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +244,6 @@ class MainScreen extends StatelessWidget {
     }
   }
 
-
   double _getRemaining(double distance) {
     if (distance < 0.3) return 0.3 - distance;
     if (distance < 0.5) return 0.5 - distance;
@@ -255,7 +251,6 @@ class MainScreen extends StatelessWidget {
     if (distance < 0.7) return 0.7 - distance;
     return 0.0;
   }
-
 
   Future<String> getUserLevel() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -274,18 +269,6 @@ class MainScreen extends StatelessWidget {
     return '';
   }
 
-  Widget buildRecommendation(String level) {
-    return Text(
-      switch (level) {
-        '초급' => '🏃‍♂️ 초급자용 짧고 쉬운 코스를 추천합니다.',
-        '중급' => '🔥 중급자를 위한 코스를 추천합니다!',
-        '고급' => '💪 고강도 장거리 러닝 코스를 추천합니다!',
-        _ => '설문을 먼저 작성해주세요.',
-      },
-      style: const TextStyle(fontSize: 16),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -294,18 +277,6 @@ class MainScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            FutureBuilder<String>(
-              future: getUserLevel(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
-                }
-                final level = snapshot.data ?? '';
-                return buildRecommendation(level);
-              },
-            ),
-            const SizedBox(height: 10),
-
             FutureBuilder<double>(
               future: getTotalDistance(),
               builder: (context, snapshot) {
@@ -395,11 +366,6 @@ class _LevelInfo {
 
   _LevelInfo(this.label, this.nextLabel, this.progress, this.bgColor, this.textColor);
 }
-
-
-
-
-
 
 class BattleScreen extends StatelessWidget {
   const BattleScreen({super.key});
