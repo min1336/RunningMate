@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "52103461011",
+    "project_id": "runningmate-ab0b3",
+    "storage_bucket": "runningmate-ab0b3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:52103461011:android:d08249f0dba78f27cbb566",
+        "android_client_info": {
+          "package_name": "com.example.run1220"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPnevHUkOGbkBe8P7KnxxiCnTavwartJQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
