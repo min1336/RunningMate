@@ -35,7 +35,7 @@ dependencies:
   flutter_joystick: ^0.2.1
   flutter_naver_map: ^1.3.0+1
   permission_handler: ^11.0.0
-  http: ^0.13.0
+  http: ^1.4.0
   path_provider: ^2.0.11
   audioplayers: ^6.1.0
   cupertino_icons: ^1.0.8
@@ -89,6 +89,7 @@ flutter:
     - assets/music/opening/Untitled.mp3
     - assets/music/opening/Rebel.mp3
     - assets/music/opening/Crash_and_Burn.mp3
+    - assets/lottie/wave.json
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
