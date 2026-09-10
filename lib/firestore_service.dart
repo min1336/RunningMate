@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 /// ✅ 러닝 기록 업로드 함수
 Future<void> uploadRunRecord({
@@ -21,9 +22,9 @@ Future<void> uploadRunRecord({
       'routeImage': routeImageBase64,
       'createdAt': FieldValue.serverTimestamp(), // 정렬용
     });
-    print("✅ 러닝 기록 업로드 완료");
+    debugPrint("✅ 러닝 기록 업로드 완료");
   } catch (e) {
-    print("❌ 업로드 실패: $e");
+    debugPrint("❌ 업로드 실패: $e");
   }
 }
 
@@ -38,7 +39,7 @@ Future<List<Map<String, dynamic>>> fetchRunRecordsForUser(String userId) async {
 
     return snapshot.docs.map((doc) => doc.data()).toList();
   } catch (e) {
-    print("❌ 기록 불러오기 실패: $e");
+    debugPrint("❌ 기록 불러오기 실패: $e");
     return [];
   }
 }

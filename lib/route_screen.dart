@@ -38,13 +38,16 @@ class _RouteScreenState extends State<RouteScreen> {
     );
   }
 
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  double _calculateDistance(
+      double lat1, double lon1, double lat2, double lon2) {
     const double earthRadius = 6371000; // meters
     double dLat = _degreesToRadians(lat2 - lat1);
     double dLon = _degreesToRadians(lon2 - lon1);
     double a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_degreesToRadians(lat1)) * cos(_degreesToRadians(lat2)) *
-            sin(dLon / 2) * sin(dLon / 2);
+        cos(_degreesToRadians(lat1)) *
+            cos(_degreesToRadians(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
     double c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return earthRadius * c;
   }
@@ -65,7 +68,10 @@ class _RouteScreenState extends State<RouteScreen> {
       final data = doc.data();
       final rawRoute = data['route'];
 
-      if (rawRoute != null && rawRoute is List && rawRoute.isNotEmpty && _currentPosition != null) {
+      if (rawRoute != null &&
+          rawRoute is List &&
+          rawRoute.isNotEmpty &&
+          _currentPosition != null) {
         final start = rawRoute.first;
         final distanceToStart = _calculateDistance(
           _currentPosition!.latitude,
@@ -86,57 +92,60 @@ class _RouteScreenState extends State<RouteScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('🏃 추천 루트 공유'), backgroundColor: Colors.redAccent),
+      appBar: AppBar(
+          title: const Text('🏃 추천 루트 공유'), backgroundColor: Colors.redAccent),
       body: _routes.isEmpty
           ? const Center(child: Text('공유된 경로가 없습니다.'))
           : ListView.builder(
-        itemCount: _routes.length,
-        padding: const EdgeInsets.all(16),
-        itemBuilder: (context, index) {
-          final route = _routes[index];
-          final name = route['title'] ?? '이름 없음';
-          final distance = route['distance'] ?? 0;
-          final time = route['estimatedTime'] ?? '알 수 없음';
-          final rating = route['rating'] ?? 0.0;
-          final ratingCount = route['ratingCount'] ?? 0;
-          final distanceToStart = route['distanceToStart'];
+              itemCount: _routes.length,
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (context, index) {
+                final route = _routes[index];
+                final name = route['title'] ?? '이름 없음';
+                final distance = route['distance'] ?? 0;
+                final time = route['estimatedTime'] ?? '알 수 없음';
+                final rating = route['rating'] ?? 0.0;
+                final distanceToStart = route['distanceToStart'];
 
-          final distanceDisplay = (distanceToStart != null)
-              ? '${(distanceToStart / 1000).toStringAsFixed(1)} km 앞'
-              : '--- 앞';
+                final distanceDisplay = (distanceToStart != null)
+                    ? '${(distanceToStart / 1000).toStringAsFixed(1)} km 앞'
+                    : '--- 앞';
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-            elevation: 4,
-            child: ListTile(
-              leading: const Icon(Icons.directions, color: Colors.red),
-              title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('$distance m ($time)'),
-                  Row(
-                    children: [
-                      Text('${rating.toStringAsFixed(1)} ★'),
-                      const SizedBox(width: 10),
-                      Text('▸ $distanceDisplay', style: const TextStyle(color: Colors.blue)),
-                    ],
-                  ),
-                ],
-              ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => RouteDetailScreen(route: route),
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15)),
+                  elevation: 4,
+                  child: ListTile(
+                    leading: const Icon(Icons.directions, color: Colors.red),
+                    title: Text(name,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('$distance m ($time)'),
+                        Row(
+                          children: [
+                            Text('${rating.toStringAsFixed(1)} ★'),
+                            const SizedBox(width: 10),
+                            Text('▸ $distanceDisplay',
+                                style: const TextStyle(color: Colors.blue)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RouteDetailScreen(route: route),
+                        ),
+                      );
+                    },
                   ),
                 );
               },
             ),
-          );
-        },
-      ),
     );
   }
 }

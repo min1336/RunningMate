@@ -11,7 +11,7 @@ class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  _ProfileScreenState createState() => _ProfileScreenState();
+  State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
@@ -140,7 +140,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     final data = doc.data();
     if (data != null) {
       setState(() {
@@ -151,10 +152,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _averageDistance = data['averageDistance'] ?? '';
 
         final cash = data['cash'] ?? 0;
-        if (cash >= 300) _cashBadge = '🏆 플래티넘';
-        else if (cash >= 150) _cashBadge = '🥇 골드';
-        else if (cash >= 50) _cashBadge = '🥈 실버';
-        else _cashBadge = '🥉 브론즈';
+        if (cash >= 300) {
+          _cashBadge = '🏆 플래티넘';
+        } else if (cash >= 150) {
+          _cashBadge = '🥇 골드';
+        } else if (cash >= 50) {
+          _cashBadge = '🥈 실버';
+        } else {
+          _cashBadge = '🥉 브론즈';
+        }
       });
     }
   }
@@ -162,7 +168,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveUserInfo(Map<String, String> newData) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(uid).update(newData);
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .update(newData);
     await _loadUserInfo();
   }
 
@@ -178,7 +187,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('profileImage', _profileImage!.path);
       }
-    } catch (e) {}
+    } catch (_) {
+      return;
+    }
   }
 
   Future<void> _editUserInfo() async {
@@ -200,14 +211,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _deleteAccountWithReauth(BuildContext context) async {
+  Future<void> _deleteAccountWithReauth() async {
     final user = FirebaseAuth.instance.currentUser;
     final uid = user?.uid;
 
     if (user == null || uid == null) return;
 
     try {
-
       final prefs = await SharedPreferences.getInstance();
       final savedEmail = prefs.getString('email');
       final savedPassword = prefs.getString('password');
@@ -219,20 +229,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
             password: savedPassword,
           );
           await user.reauthenticateWithCredential(credential);
-          print("🔑 자동 재인증 성공");
+          debugPrint("🔑 자동 재인증 성공");
         } catch (e) {
-          print("⚠️ 자동 재인증 실패, 다이얼로그로 전환");
-          _showReauthDialog(context, user);
+          debugPrint("⚠️ 자동 재인증 실패, 다이얼로그로 전환");
+          if (!mounted) return;
+          _showReauthDialog(user);
           return; // 재인증 실패 시 아래 삭제 로직 중단
         }
       }
 
-      final allUsers = await FirebaseFirestore.instance.collection('users').get();
+      final allUsers =
+          await FirebaseFirestore.instance.collection('users').get();
       for (final doc in allUsers.docs) {
         final otherUid = doc.id;
         if (otherUid == uid) continue;
 
-        await FirebaseFirestore.instance.collection('users').doc(otherUid).update({
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(otherUid)
+            .update({
           'friends': FieldValue.arrayRemove([uid]),
           'friendRequests': FieldValue.arrayRemove([uid]),
           'sentRequests': FieldValue.arrayRemove([uid]),
@@ -242,16 +257,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await FirebaseFirestore.instance.collection('users').doc(uid).delete();
       await user.delete();
 
-      if (context.mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-              (route) => false,
-        );
-      }
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       if (e.code == 'requires-recent-login') {
-        _showReauthDialog(context, user);
+        _showReauthDialog(user);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('삭제 실패: ${e.message}')),
@@ -260,23 +275,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _showReauthDialog(BuildContext context, User user) {
+  void _showReauthDialog(User user) {
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text("다시 로그인해주세요"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: emailController, decoration: const InputDecoration(labelText: '이메일')),
-            TextField(controller: passwordController, obscureText: true, decoration: const InputDecoration(labelText: '비밀번호')),
+            TextField(
+                controller: emailController,
+                decoration: const InputDecoration(labelText: '이메일')),
+            TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: '비밀번호')),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('취소')),
           TextButton(
             onPressed: () async {
               final credential = EmailAuthProvider.credential(
@@ -290,12 +312,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // ✅ 여기 추가: 입력한 값을 저장
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setString('email', emailController.text.trim());
-                await prefs.setString('password', passwordController.text.trim());
+                await prefs.setString(
+                    'password', passwordController.text.trim());
 
-                Navigator.pop(context);
-                await _deleteAccountWithReauth(context); // 재시도
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
+                await _deleteAccountWithReauth(); // 재시도
               } catch (e) {
-                Navigator.pop(context);
+                if (!dialogContext.mounted) return;
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('재인증 실패: $e')),
                 );
@@ -324,13 +351,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     for (final doc in snapshot.docs) {
       final senderUid = doc.id;
-      final senderDoc = await FirebaseFirestore.instance.collection('users').doc(senderUid).get();
+      final senderDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(senderUid)
+          .get();
       if (!senderDoc.exists) continue;
       final nickname = senderDoc['nickname'] ?? '알 수 없음';
       final time = (doc['timestamp'] as Timestamp).toDate();
       pokes.add({'nickname': nickname, 'timestamp': time});
     }
 
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -340,20 +371,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: pokes.isEmpty
               ? const Text('최근 받은 콕찌르기가 없습니다.')
               : ListView.builder(
-            itemCount: pokes.length,
-            shrinkWrap: true,
-            itemBuilder: (context, index) {
-              final poke = pokes[index];
-              return ListTile(
-                leading: const Icon(Icons.touch_app, color: Colors.pink),
-                title: Text('${poke['nickname']}님이 콕 찔렀어요!'),
-                subtitle: Text(
-                  timeAgo(poke['timestamp']),
-                  style: const TextStyle(fontSize: 12),
+                  itemCount: pokes.length,
+                  shrinkWrap: true,
+                  itemBuilder: (context, index) {
+                    final poke = pokes[index];
+                    return ListTile(
+                      leading: const Icon(Icons.touch_app, color: Colors.pink),
+                      title: Text('${poke['nickname']}님이 콕 찔렀어요!'),
+                      subtitle: Text(
+                        timeAgo(poke['timestamp']),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
         actions: [
           TextButton(
@@ -386,7 +417,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             tooltip: '받은 콕찌르기',
             onPressed: _showPokeListDialog,
           ),
-
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) async {
@@ -405,7 +435,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text("로그아웃", style: TextStyle(color: Colors.red)),
+                        child: const Text("로그아웃",
+                            style: TextStyle(color: Colors.red)),
                       ),
                     ],
                   ),
@@ -416,13 +447,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (context.mounted) {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                          (route) => false,
+                      MaterialPageRoute(
+                          builder: (context) => const LoginScreen()),
+                      (route) => false,
                     );
                   }
                 }
-              }
-              else if (value == 'delete') {
+              } else if (value == 'delete') {
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -435,14 +466,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text("삭제", style: TextStyle(color: Colors.red)),
+                        child: const Text("삭제",
+                            style: TextStyle(color: Colors.red)),
                       ),
                     ],
                   ),
                 );
 
                 if (confirm == true) {
-                  await _deleteAccountWithReauth(context);
+                  if (!context.mounted) return;
+                  await _deleteAccountWithReauth();
                 }
               }
             },
@@ -470,7 +503,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: CircleAvatar(
                     backgroundImage: _profileImage != null
                         ? FileImage(_profileImage!)
-                        : AssetImage('assets/images/default_profile.png') as ImageProvider,
+                        : AssetImage('assets/images/default_profile.png')
+                            as ImageProvider,
                     radius: 40,
                   ),
                 ),
@@ -478,7 +512,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_nicknameController.text, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text(_nicknameController.text,
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold)),
                     SizedBox(height: 5),
                     Text('키: $_height, 체중: $_weight'),
                     Text('주당 운동 횟수: $_workoutPerWeek'),
@@ -488,17 +524,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             SizedBox(height: 40),
-            Text('🏃 러닝 거리 통계', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('🏃 러닝 거리 통계',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             SizedBox(height: 8),
             Text('• 전체 거리: ${_totalDistance.toStringAsFixed(2)} km'),
             Text('• 월간 거리: ${_monthlyDistance.toStringAsFixed(2)} km'),
             Text('• 주간 거리: ${_weeklyDistance.toStringAsFixed(2)} km'),
             Text('• 오늘 거리: ${_dailyDistance.toStringAsFixed(2)} km'),
             SizedBox(height: 30),
-            Text('💰 이번 달 캐시 보상', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('💰 이번 달 캐시 보상',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             Text('• 적립 캐시: $_monthlyCash 캐시'),
             SizedBox(height: 20),
-            Text('🎖 누적 캐시 뱃지', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('🎖 누적 캐시 뱃지',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             Text('• 현재 등급: $_cashBadge'),
           ],
         ),

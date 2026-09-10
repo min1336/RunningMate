@@ -18,7 +18,8 @@ class NaverMapApp extends StatefulWidget {
 
 class _NaverMapAppState extends State<NaverMapApp> {
   NaverMapController? _mapController; // 네이버 지도 컨트롤러
-  final TextEditingController _startController = TextEditingController(); // 출발지 입력 필드 컨트롤러
+  final TextEditingController _startController =
+      TextEditingController(); // 출발지 입력 필드 컨트롤러
   List<Map<String, String>> _suggestedAddresses = []; // 자동완성된 주소 목록
 
   List<NLatLng> _routePath = []; // 🔥 실제 도로 경로 데이터를 저장할 변수 추가
@@ -44,7 +45,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
   // 🔽 네이버 검색 API 호출 (주소 자동완성)
   Future<void> _getSuggestions(String query) async {
-    if (query.isEmpty) { // 입력값이 비어 있으면
+    if (query.isEmpty) {
+      // 입력값이 비어 있으면
       setState(() {
         _suggestedAddresses.clear(); // 추천 주소 초기화
       });
@@ -62,7 +64,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
       'X-Naver-Client-Secret': clientSecret,
     });
 
-    if (response.statusCode == 200) { // 성공적인 응답 처리
+    if (response.statusCode == 200) {
+      // 성공적인 응답 처리
       final data = jsonDecode(response.body); // JSON 디코딩
       final items = data['items'] as List<dynamic>; // 장소 데이터 추출
 
@@ -70,7 +73,9 @@ class _NaverMapAppState extends State<NaverMapApp> {
         _suggestedAddresses = items.map<Map<String, String>>((item) {
           return {
             'place': _removeHtmlTags(item['title'] ?? '장소 이름 없음'), // 장소 이름
-            'address': item['roadAddress'] ?? item['jibunAddress'] ?? '주소 정보 없음', // 주소 정보
+            'address': item['roadAddress'] ??
+                item['jibunAddress'] ??
+                '주소 정보 없음', // 주소 정보
           };
         }).toList();
       });
@@ -85,7 +90,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
     final route = routeData['route']['traavoidcaronly'][0]; // 경로 데이터 추출
     final path = route['path']; // 경로의 경로점 목록
 
-    for (var coord in path) { // 경로점 순회
+    for (var coord in path) {
+      // 경로점 순회
       polylineCoordinates.add(NLatLng(coord[1], coord[0])); // 좌표 추가
     }
 
@@ -103,40 +109,49 @@ class _NaverMapAppState extends State<NaverMapApp> {
     ));
   }
 
-
-  Future<List<NLatLng>> _generateWaypoints(NLatLng start, double totalDistance, {int? seed}) async {
+  Future<List<NLatLng>> _generateWaypoints(NLatLng start, double totalDistance,
+      {int? seed}) async {
     const int numberOfWaypoints = 3; // 경유지 개수
-    final Random random = seed != null ? Random(seed) : Random();  // 랜덤 값 생성기 ( 시드값으로 랜덤 반복 방지 )
+    final Random random =
+        seed != null ? Random(seed) : Random(); // 랜덤 값 생성기 ( 시드값으로 랜덤 반복 방지 )
     final List<NLatLng> waypoints = []; // 경유지 좌표 리스트
 
     for (int i = 1; i < numberOfWaypoints; i++) {
       final double angle = random.nextDouble() * 2 * pi; // 임의의 방향 ( 0~360도 )
-      final double distance = (totalDistance / numberOfWaypoints) * (0.8 + random.nextDouble() * 0.4);
+      final double distance = (totalDistance / numberOfWaypoints) *
+          (0.8 + random.nextDouble() * 0.4);
       // 경유지 간 거리 계산 ( 거리 범위 다양화 : 총 거리의 약 0.8 ~ 1.2배 )
 
-      final NLatLng waypoint = await _calculateWaypoint(start, distance, angle); // 새로운 경유지 좌표 계산
+      final NLatLng waypoint =
+          await _calculateWaypoint(start, distance, angle); // 새로운 경유지 좌표 계산
       waypoints.add(waypoint); // 경유지 리스트에 추가
     }
 
     return waypoints; // 생성된 경유지 리스트 반환
   }
 
-
   Future<List<NLatLng>> optimizeWaypoints(List<NLatLng> waypoints) async {
     if (waypoints.isEmpty) return waypoints; // 경유지가 없으면 그대로 반환
 
-    List<int> bestOrder = List.generate(waypoints.length, (index) => index); // 기본 순서 생성
-    double bestDistance = _calculateTotalDistance(waypoints, bestOrder); // 초기 경로 거리 계산
+    List<int> bestOrder =
+        List.generate(waypoints.length, (index) => index); // 기본 순서 생성
+    double bestDistance =
+        _calculateTotalDistance(waypoints, bestOrder); // 초기 경로 거리 계산
 
     bool improved = true; // 최적화 여부 플래그
-    while (improved) { // 최적화 반복
+    while (improved) {
+      // 최적화 반복
       improved = false; // 개선 상태 초기화
-      for (int i = 1; i < waypoints.length - 1; i++) { // 모든 경유지 쌍 반복
+      for (int i = 1; i < waypoints.length - 1; i++) {
+        // 모든 경유지 쌍 반복
         for (int j = i + 1; j < waypoints.length; j++) {
           List<int> newOrder = List.from(bestOrder); // 새로운 순서 생성
-          newOrder.setRange(i, j + 1, bestOrder.sublist(i, j + 1).reversed); // 경유지 순서 뒤집기
-          double newDistance = _calculateTotalDistance(waypoints, newOrder); // 새 경로 거리 계산
-          if (newDistance < bestDistance) { // 새로운 경로가 더 짧으면
+          newOrder.setRange(
+              i, j + 1, bestOrder.sublist(i, j + 1).reversed); // 경유지 순서 뒤집기
+          double newDistance =
+              _calculateTotalDistance(waypoints, newOrder); // 새 경로 거리 계산
+          if (newDistance < bestDistance) {
+            // 새로운 경로가 더 짧으면
             bestDistance = newDistance; // 최적 거리 갱신
             bestOrder = newOrder; // 최적 순서 갱신
             improved = true; // 개선 여부 업데이트
@@ -145,13 +160,17 @@ class _NaverMapAppState extends State<NaverMapApp> {
       }
     }
 
-    return bestOrder.map((index) => waypoints[index]).toList(); // 최적화된 순서에 따라 경유지 반환
+    return bestOrder
+        .map((index) => waypoints[index])
+        .toList(); // 최적화된 순서에 따라 경유지 반환
   }
 
   double _calculateTotalDistance(List<NLatLng> waypoints, List<int> order) {
     double totalDistance = 0.0; // 총 거리 초기화
-    for (int i = 0; i < order.length - 1; i++) { // 경유지 쌍 반복
-      totalDistance += _calculateDistance(waypoints[order[i]], waypoints[order[i + 1]]);
+    for (int i = 0; i < order.length - 1; i++) {
+      // 경유지 쌍 반복
+      totalDistance +=
+          _calculateDistance(waypoints[order[i]], waypoints[order[i + 1]]);
       // 두 점 간 거리 계산 후 합산
     }
     return totalDistance; // 총 거리 반환
@@ -160,9 +179,12 @@ class _NaverMapAppState extends State<NaverMapApp> {
   double _calculateDistance(NLatLng point1, NLatLng point2) {
     const earthRadius = 6371000.0; // 지구 반지름 (미터)
     final dLat = _degreesToRadians(point2.latitude - point1.latitude); // 위도 차이
-    final dLon = _degreesToRadians(point2.longitude - point1.longitude); // 경도 차이
+    final dLon =
+        _degreesToRadians(point2.longitude - point1.longitude); // 경도 차이
     final a = pow(sin(dLat / 2), 2) +
-        cos(_degreesToRadians(point1.latitude)) * cos(_degreesToRadians(point2.latitude)) * pow(sin(dLon / 2), 2);
+        cos(_degreesToRadians(point1.latitude)) *
+            cos(_degreesToRadians(point2.latitude)) *
+            pow(sin(dLon / 2), 2);
     // 구면 좌표 거리 계산
     final c = 2 * atan2(sqrt(a), sqrt(1 - a)); // 중심 각도
     return earthRadius * c; // 거리 반환
@@ -172,11 +194,13 @@ class _NaverMapAppState extends State<NaverMapApp> {
     return degree * pi / 180; // 각도를 라디안으로 반환
   }
 
-
-  Future<NLatLng> _calculateWaypoint(NLatLng start, double distance, double angle) async {
+  Future<NLatLng> _calculateWaypoint(
+      NLatLng start, double distance, double angle) async {
     const earthRadius = 6371000.0; // 지구 반지름
     final deltaLat = (distance / earthRadius) * cos(angle); // 위도 변화량
-    final deltaLon = (distance / (earthRadius * cos(start.latitude * pi / 180))) * sin(angle); // 경도 변화량
+    final deltaLon =
+        (distance / (earthRadius * cos(start.latitude * pi / 180))) *
+            sin(angle); // 경도 변화량
 
     final newLat = start.latitude + (deltaLat * 180 / pi); // 새로운 위도
     final newLon = start.longitude + (deltaLon * 180 / pi); // 새로운 경도
@@ -186,8 +210,10 @@ class _NaverMapAppState extends State<NaverMapApp> {
 
   Future<NLatLng> getLocation(String address) async {
     const clientId = 'rz7lsxe3oo'; // 네이버 클라이언트 ID
-    const clientSecret = 'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg'; // 네이버 클라이언트 secret ID
-    final url = 'https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${Uri.encodeComponent(address)}';
+    const clientSecret =
+        'DAozcTRgFuEJzSX9hPrxQNkYl5M2hCnHEkzh1SBg'; // 네이버 클라이언트 secret ID
+    final url =
+        'https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=${Uri.encodeComponent(address)}';
     // 주소를 기반으로 좌표를 반환하는 API 호출 URL
 
     final response = await http.get(Uri.parse(url), headers: {
@@ -195,9 +221,11 @@ class _NaverMapAppState extends State<NaverMapApp> {
       'X-NCP-APIGW-API-KEY': clientSecret, // 인증 헤더
     });
 
-    if (response.statusCode == 200) { // 응답 성공
+    if (response.statusCode == 200) {
+      // 응답 성공
       final data = jsonDecode(response.body); // JSON 데이터 파싱
-      if (data['addresses'] == null || data['addresses'].isEmpty) { // 주소 정보가 없으면 예외 처리
+      if (data['addresses'] == null || data['addresses'].isEmpty) {
+        // 주소 정보가 없으면 예외 처리
         throw Exception('주소를 찾을 수 없습니다.');
       }
       final lat = double.parse(data['addresses'][0]['y']); // 위도
@@ -215,26 +243,26 @@ class _NaverMapAppState extends State<NaverMapApp> {
       await _mapController!.updateCamera(
         NCameraUpdate.withParams(
           target: _start!, // 카메라를 이동시킬 목표 위치 ( 출발지 )
-          zoom: 15,  // 적당한 확대 수준
+          zoom: 15, // 적당한 확대 수준
         ),
       );
     }
   }
+
 // ⭐ 지도 위에 총 거리(km) 표시
   // ⭐ 지도 위에 총 거리(km) 표시 (수정 버전)
   void _showTotalDistance(int distanceInMeters) {
     setState(() {
-      _calculatedDistance = distanceInMeters / 1000;  // m → km 변환
+      _calculatedDistance = distanceInMeters / 1000; // m → km 변환
     });
 
     if (_mapController == null || _start == null) return;
     // 지도 컨트롤러 또는 시작 위치가 없으면 함수 종료
 
-    _mapController!.addOverlay(
-        NMarker(
-          id: 'distance_marker', // 마커의 고유 ID
-          position: _start!, // 마커를 표시할 위치 ( 출발지 )
-        ));
+    _mapController!.addOverlay(NMarker(
+      id: 'distance_marker', // 마커의 고유 ID
+      position: _start!, // 마커를 표시할 위치 ( 출발지 )
+    ));
   }
 
 // _getDirections 함수 수정: 경유지 마커 추가
@@ -260,7 +288,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
         '?start=${_start!.longitude},${_start!.latitude}' // 출발지 좌표
         '&goal=${_start!.longitude},${_start!.latitude}' // 도착지 좌표 ( 출발지와 동일 )
         '&waypoints=$waypointsParam' // 경유지 좌표
-        '&option=traavoidcaronly';  // 교통체증 회피
+        '&option=traavoidcaronly'; // 교통체증 회피
 
     // API 요청 보내기
     final response = await http.get(Uri.parse(url), headers: {
@@ -268,12 +296,14 @@ class _NaverMapAppState extends State<NaverMapApp> {
       'X-NCP-APIGW-API-KEY': clientSecret,
     });
 
-    if (response.statusCode == 200) { // 응답 성공
+    if (response.statusCode == 200) {
+      // 응답 성공
       final data = jsonDecode(response.body); // 응답 데이터 JSON 디코딩
       _drawRoute(data); // 경로 그리기
 
       // ✅ trafast → tracomfort로 변경
-      final totalDistance = data['route']['traavoidcaronly'][0]['summary']['distance'];
+      final totalDistance =
+          data['route']['traavoidcaronly'][0]['summary']['distance'];
       // 경로의 총 거리 추출
       _showTotalDistance(totalDistance); // 표시
     }
@@ -282,14 +312,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
   @override
   void initState() {
     super.initState();
-    _initializeNaverMap(); // 🔥 추가
     _permission(); // 기존 위치 권한 요청
   }
-
-  Future<void> _initializeNaverMap() async {
-    await NaverMapSdk.instance.initialize(clientId: 'rz7lsxe3oo');
-  }
-
 
   void _permission() async {
     var status = await Permission.location.status;
@@ -334,7 +358,7 @@ class _NaverMapAppState extends State<NaverMapApp> {
         child: Scaffold(
           body: Stack(
             children: [
-              Expanded(
+              Positioned.fill(
                 child: NaverMap(
                   options: const NaverMapViewOptions(
                     initialCameraPosition: NCameraPosition(
@@ -380,7 +404,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                   borderRadius: BorderRadius.circular(30),
                                   borderSide: BorderSide.none,
                                 ),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 10),
                                 suffixIcon: IconButton(
                                   icon: Icon(Icons.clear),
                                   onPressed: () {
@@ -400,7 +425,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
                     if (_suggestedAddresses.isNotEmpty)
                       Container(
                         margin: EdgeInsets.only(top: 4),
-                        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        padding:
+                            EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                         height: 200,
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -419,11 +445,14 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             physics: NeverScrollableScrollPhysics(),
                             itemCount: _suggestedAddresses.length,
                             itemBuilder: (context, index) {
-                              final place = _suggestedAddresses[index]['place']!;
-                              final address = _suggestedAddresses[index]['address']!;
+                              final place =
+                                  _suggestedAddresses[index]['place']!;
+                              final address =
+                                  _suggestedAddresses[index]['address']!;
 
                               return ListTile(
-                                contentPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                                contentPadding: EdgeInsets.symmetric(
+                                    vertical: 4, horizontal: 16),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),
@@ -503,7 +532,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: Text(
                         '${_calculatedDistance.toStringAsFixed(2)} km',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -527,80 +557,95 @@ class _NaverMapAppState extends State<NaverMapApp> {
                           onTap: _isLoading
                               ? null
                               : () async {
-                            FocusScope.of(context).unfocus();
-                            setState(() {
-                              _isLoading = true;
-                            });
+                                  FocusScope.of(context).unfocus();
+                                  setState(() {
+                                    _isLoading = true;
+                                  });
 
-                            try {
-                              if (_selectedDistance == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('달릴 거리를 선택해 주세요.')),
-                                );
-                                return;
-                              }
+                                  try {
+                                    if (_selectedDistance == null) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content: Text('달릴 거리를 선택해 주세요.')),
+                                      );
+                                      return;
+                                    }
 
-                              double minDistance, maxDistance;
-                              switch (_selectedDistance) {
-                                case '초급':
-                                  minDistance = 500;
-                                  maxDistance = 2500;
-                                  break;
-                                case '중급':
-                                  minDistance = 2500;
-                                  maxDistance = 4500;
-                                  break;
-                                case '고급':
-                                  minDistance = 4500;
-                                  maxDistance = 7000;
-                                  break;
-                                default:
-                                  minDistance = 0;
-                                  maxDistance = 0;
-                              }
+                                    double minDistance, maxDistance;
+                                    switch (_selectedDistance) {
+                                      case '초급':
+                                        minDistance = 500;
+                                        maxDistance = 2500;
+                                        break;
+                                      case '중급':
+                                        minDistance = 2500;
+                                        maxDistance = 4500;
+                                        break;
+                                      case '고급':
+                                        minDistance = 4500;
+                                        maxDistance = 7000;
+                                        break;
+                                      default:
+                                        minDistance = 0;
+                                        maxDistance = 0;
+                                    }
 
-                              final totalDistance = (minDistance + maxDistance) / 2;
-                              _start = await getLocation(_startController.text);
+                                    final totalDistance =
+                                        (minDistance + maxDistance) / 2;
+                                    _start = await getLocation(
+                                        _startController.text);
 
-                              int retryCount = 0;
-                              const int maxRetries = 10;
-                              bool isRouteFound = false;
+                                    int retryCount = 0;
+                                    const int maxRetries = 10;
+                                    bool isRouteFound = false;
 
-                              while (retryCount < maxRetries) {
-                                final waypoints = await _generateWaypoints(
-                                    _start!, totalDistance / 2,
-                                    seed: DateTime.now().millisecondsSinceEpoch);
-                                _waypoints = await optimizeWaypoints(waypoints);
+                                    while (retryCount < maxRetries) {
+                                      final waypoints =
+                                          await _generateWaypoints(
+                                              _start!, totalDistance / 2,
+                                              seed: DateTime.now()
+                                                  .millisecondsSinceEpoch);
+                                      _waypoints =
+                                          await optimizeWaypoints(waypoints);
 
-                                await _getDirections();
+                                      await _getDirections();
 
-                                final calculatedDistance =
-                                    _calculatedDistance * 1000; // km → m 변환
+                                      final calculatedDistance =
+                                          _calculatedDistance *
+                                              1000; // km → m 변환
 
-                                if (calculatedDistance >= minDistance &&
-                                    calculatedDistance <= maxDistance) {
-                                  isRouteFound = true;
-                                  break;
-                                } else {
-                                  retryCount++;
-                                }
-                              }
+                                      if (calculatedDistance >= minDistance &&
+                                          calculatedDistance <= maxDistance) {
+                                        isRouteFound = true;
+                                        break;
+                                      } else {
+                                        retryCount++;
+                                      }
+                                    }
 
-                              if (!isRouteFound) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('❗ 최적의 경로를 찾지 못했습니다.\n다시 시도해 주세요.')),
-                                );
-                              }
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('오류 발생: $e')),
-                              );
-                            } finally {
-                              setState(() {
-                                _isLoading = false;
-                              });
-                            }
-                          },
+                                    if (!isRouteFound) {
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content: Text(
+                                                '❗ 최적의 경로를 찾지 못했습니다.\n다시 시도해 주세요.')),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('오류 발생: $e')),
+                                    );
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() {
+                                        _isLoading = false;
+                                      });
+                                    }
+                                  }
+                                },
                           child: Container(
                             decoration: BoxDecoration(
                               color: Colors.grey[800], // 왼쪽 버튼 회색
@@ -617,7 +662,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
                                 const SizedBox(width: 8),
                                 const Text(
                                   '경로탐색',
-                                  style: TextStyle(color: Colors.white, fontSize: 16),
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 16),
                                 ),
                               ],
                             ),
@@ -650,7 +696,8 @@ class _NaverMapAppState extends State<NaverMapApp> {
                               );
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("먼저 경로를 추천받아야 합니다.")),
+                                const SnackBar(
+                                    content: Text("먼저 경로를 추천받아야 합니다.")),
                               );
                             }
                           },
@@ -666,11 +713,13 @@ class _NaverMapAppState extends State<NaverMapApp> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.directions_run, color: Colors.white),
+                                const Icon(Icons.directions_run,
+                                    color: Colors.white),
                                 const SizedBox(width: 8),
                                 const Text(
                                   '안내시작',
-                                  style: TextStyle(color: Colors.white, fontSize: 16),
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 16),
                                 ),
                               ],
                             ),

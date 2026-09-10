@@ -30,32 +30,6 @@ class _CashShopScreenState extends State<CashShopScreen>
     _loadAllData();
   }
 
-  Future<void> _rewardCashForRunning(double distanceKm) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
-    final reward = distanceKm.floor();
-    final bonus = distanceKm >= 5.0 ? 2 : 0;
-    final totalReward = reward + bonus;
-
-    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-    final logRef = userRef.collection('cash_logs').doc();
-
-    await FirebaseFirestore.instance.runTransaction((transaction) async {
-      final snapshot = await transaction.get(userRef);
-      final currentCash = snapshot['cash'] ?? 0;
-
-      transaction.update(userRef, {'cash': currentCash + totalReward});
-      transaction.set(logRef, {
-        'reward': reward,
-        'bonus': bonus,
-        'total': totalReward,
-        'distance': distanceKm,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    });
-  }
-
   Future<int> getMonthlyCashEarned() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return 0;
@@ -87,14 +61,17 @@ class _CashShopScreenState extends State<CashShopScreen>
   Future<void> _loadCash() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     final data = doc.data() ?? {};
     setState(() => _myCash = data['cash'] ?? 0);
   }
 
   Future<void> _loadShopItems() async {
-    final snapshot = await FirebaseFirestore.instance.collection('shop_items').get();
-    final items = snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+    final snapshot =
+        await FirebaseFirestore.instance.collection('shop_items').get();
+    final items =
+        snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     setState(() {
       _shopItems = items;
       _applySort();
@@ -148,14 +125,18 @@ class _CashShopScreenState extends State<CashShopScreen>
   }
 
   Future<void> _loadDailyItems() async {
-    final doc = await FirebaseFirestore.instance.collection('dailyShopItems').doc('today').get();
+    final doc = await FirebaseFirestore.instance
+        .collection('dailyShopItems')
+        .doc('today')
+        .get();
     if (!doc.exists) return;
     final ids = List<String>.from(doc['itemIds'] ?? []);
     final snapshot = await FirebaseFirestore.instance
         .collection('shop_items')
         .where(FieldPath.documentId, whereIn: ids)
         .get();
-    final items = snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+    final items =
+        snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
     setState(() {
       _dailyItems = items;
       _applySort();
@@ -168,7 +149,9 @@ class _CashShopScreenState extends State<CashShopScreen>
 
     final cost = item['cost'];
     final docRef = FirebaseFirestore.instance.collection('users').doc(uid);
-    final itemRef = FirebaseFirestore.instance.collection('shop_items').doc(item['id']);
+    final itemRef =
+        FirebaseFirestore.instance.collection('shop_items').doc(item['id']);
+    String? failureMessage;
 
     await FirebaseFirestore.instance.runTransaction((transaction) async {
       final userSnapshot = await transaction.get(docRef);
@@ -178,12 +161,12 @@ class _CashShopScreenState extends State<CashShopScreen>
       final currentQuantity = itemSnapshot['quantity'] ?? 0;
 
       if (currentQuantity <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ 품절된 상품입니다.")));
+        failureMessage = "❌ 품절된 상품입니다.";
         return;
       }
 
       if (currentCash < cost) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ 캐시가 부족합니다.")));
+        failureMessage = "❌ 캐시가 부족합니다.";
         return;
       }
 
@@ -200,7 +183,15 @@ class _CashShopScreenState extends State<CashShopScreen>
       });
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ ${item['name']} 구매 완료!")));
+    if (!mounted) return;
+    if (failureMessage != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failureMessage!)));
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text("✅ ${item['name']} 구매 완료!")));
     await _loadCash();
     await _loadShopItems();
   }
@@ -219,14 +210,20 @@ class _CashShopScreenState extends State<CashShopScreen>
           _dailyItems.sort((a, b) => (b['cost'] as int).compareTo(a['cost']));
           break;
         case '이름 가나다순':
-          _shopItems.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
-          _inventory.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
-          _dailyItems.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+          _shopItems.sort(
+              (a, b) => (a['name'] as String).compareTo(b['name'] as String));
+          _inventory.sort(
+              (a, b) => (a['name'] as String).compareTo(b['name'] as String));
+          _dailyItems.sort(
+              (a, b) => (a['name'] as String).compareTo(b['name'] as String));
           break;
         case '수량 많은 순':
-          _shopItems.sort((a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int));
-          _inventory.sort((a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int));
-          _dailyItems.sort((a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int));
+          _shopItems.sort(
+              (a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int));
+          _inventory.sort(
+              (a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int));
+          _dailyItems.sort(
+              (a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int));
           break;
       }
     });
@@ -242,7 +239,9 @@ class _CashShopScreenState extends State<CashShopScreen>
           '가격 높은 순',
           '이름 가나다순',
           '수량 많은 순',
-        ].map((label) => DropdownMenuItem(value: label, child: Text(label))).toList(),
+        ]
+            .map((label) => DropdownMenuItem(value: label, child: Text(label)))
+            .toList(),
         onChanged: (value) {
           setState(() {
             _selectedSort = value!;
@@ -257,7 +256,11 @@ class _CashShopScreenState extends State<CashShopScreen>
     final int quantity = item['quantity'] ?? 0;
     final bool isSoldOut = quantity <= 0;
     final String? purchasedAt = item['purchasedAt'] is Timestamp
-        ? (item['purchasedAt'] as Timestamp).toDate().toLocal().toString().split(' ')[0]
+        ? (item['purchasedAt'] as Timestamp)
+            .toDate()
+            .toLocal()
+            .toString()
+            .split(' ')[0]
         : null;
     final bool used = item['used'] == true;
     final int ownedCount = item['count'] ?? 1;
@@ -269,13 +272,13 @@ class _CashShopScreenState extends State<CashShopScreen>
           owned
               ? (used ? Icons.check_circle_outline : Icons.inventory_2)
               : isSoldOut
-              ? Icons.block
-              : Icons.shopping_cart,
+                  ? Icons.block
+                  : Icons.shopping_cart,
           color: owned
               ? (used ? Colors.grey : Colors.blue)
               : isSoldOut
-              ? Colors.red
-              : Colors.green,
+                  ? Colors.red
+                  : Colors.green,
         ),
         title: Text(item['name'] ?? '이름 없음'),
         subtitle: Column(
@@ -283,11 +286,13 @@ class _CashShopScreenState extends State<CashShopScreen>
           children: [
             Text(item['type'] ?? '기타'),
             if (owned && purchasedAt != null)
-              Text("🛒 구매일: $purchasedAt", style: const TextStyle(fontSize: 12)),
+              Text("🛒 구매일: $purchasedAt",
+                  style: const TextStyle(fontSize: 12)),
             if (owned)
               Text(
                 used ? "✅ 사용됨" : "🟡 미사용",
-                style: TextStyle(fontSize: 12, color: used ? Colors.grey : Colors.black),
+                style: TextStyle(
+                    fontSize: 12, color: used ? Colors.grey : Colors.black),
               ),
             Text(owned ? "내가 가진 수량: $ownedCount개" : "남은 수량: $quantity개")
           ],
@@ -295,11 +300,13 @@ class _CashShopScreenState extends State<CashShopScreen>
         trailing: owned
             ? null
             : isSoldOut
-            ? const Text("품절", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
-            : TextButton(
-          onPressed: () => _buyItem(item),
-          child: Text("${item['cost']} 캐시"),
-        ),
+                ? const Text("품절",
+                    style: TextStyle(
+                        color: Colors.red, fontWeight: FontWeight.bold))
+                : TextButton(
+                    onPressed: () => _buyItem(item),
+                    child: Text("${item['cost']} 캐시"),
+                  ),
       ),
     );
   }
@@ -334,9 +341,16 @@ class _CashShopScreenState extends State<CashShopScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                ListView(children: _shopItems.map((e) => _buildItemCard(e)).toList()),
-                ListView(children: _inventory.map((e) => _buildItemCard(e, owned: true)).toList()),
-                ListView(children: _dailyItems.map((e) => _buildItemCard(e)).toList()),
+                ListView(
+                    children:
+                        _shopItems.map((e) => _buildItemCard(e)).toList()),
+                ListView(
+                    children: _inventory
+                        .map((e) => _buildItemCard(e, owned: true))
+                        .toList()),
+                ListView(
+                    children:
+                        _dailyItems.map((e) => _buildItemCard(e)).toList()),
               ],
             ),
           )

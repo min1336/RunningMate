@@ -30,17 +30,29 @@ class _LoginScreenState extends State<LoginScreen> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null && user.emailVerified) {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       final isSurveyDone = userDoc.data()?['surveyDone'] ?? false;
 
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => isSurveyDone ? const HomeScreen() : const SurveyScreen(),
+          builder: (context) =>
+              isSurveyDone ? const HomeScreen() : const SurveyScreen(),
         ),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    nicknameController.dispose();
+    super.dispose();
   }
 
   Future<void> _handleAuth() async {
@@ -55,7 +67,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       if (isLogin) {
-        final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        final userCredential =
+            await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
@@ -69,14 +82,18 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).get();
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .get();
         final isSurveyDone = userDoc.data()?['surveyDone'] ?? false;
 
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => isSurveyDone ? const HomeScreen() : const SurveyScreen(),
+            builder: (context) =>
+                isSurveyDone ? const HomeScreen() : const SurveyScreen(),
           ),
         );
       } else {
@@ -85,7 +102,8 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        final userCredential =
+            await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: email,
           password: password,
         );
@@ -94,14 +112,17 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString('email', email);
         await prefs.setString('password', password);
 
-        await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .set({
           'email': email,
           'nickname': nickname,
           'surveyDone': false,
           'friends': [],
           'friendRequests': [],
           'sentRequests': [],
-          'isAdmin' : false,
+          'isAdmin': false,
           'cash': 0,
         });
 
@@ -152,7 +173,8 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 Text(
                   isLogin ? '로그인' : '회원가입',
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -190,13 +212,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           return;
                         }
                         try {
-                          await FirebaseAuth.instance.sendPasswordResetEmail(email: emailController.text.trim());
+                          await FirebaseAuth.instance.sendPasswordResetEmail(
+                              email: emailController.text.trim());
                           setState(() => message = '비밀번호 재설정 메일을 보냈습니다.');
                         } catch (e) {
                           setState(() => message = '메일 전송 실패: ${e.toString()}');
                         }
                       },
-                      child: Text('비밀번호 재설정', style: TextStyle(color: Colors.grey[600])),
+                      child: Text('비밀번호 재설정',
+                          style: TextStyle(color: Colors.grey[600])),
                     ),
                     TextButton(
                       onPressed: () => setState(() {

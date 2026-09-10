@@ -15,7 +15,8 @@ class FriendRankingScreen extends StatefulWidget {
   State<FriendRankingScreen> createState() => _FriendRankingScreenState();
 }
 
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 
 Future<void> showPushNotification(String title, String body) async {
   const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
@@ -25,7 +26,8 @@ Future<void> showPushNotification(String title, String body) async {
     priority: Priority.high,
   );
 
-  const NotificationDetails details = NotificationDetails(android: androidDetails);
+  const NotificationDetails details =
+      NotificationDetails(android: androidDetails);
 
   await flutterLocalNotificationsPlugin.show(
     0,
@@ -72,15 +74,20 @@ class _FriendRankingScreenState extends State<FriendRankingScreen> {
 
   Future<void> _detectRankChanges(List<Map<String, dynamic>> rankings) async {
     final prefs = await SharedPreferences.getInstance();
-    final previousData = prefs.getString('last_rank_list_${_selectedFilter.name}');
+    final previousData =
+        prefs.getString('last_rank_list_${_selectedFilter.name}');
 
-    final currentNicknames = rankings.map((e) => e['nickname'].toString()).toList();
+    final currentNicknames =
+        rankings.map((e) => e['nickname'].toString()).toList();
     final meIndex = currentNicknames.indexWhere((e) => e.contains('(나)'));
 
     // 기존 기록이 있다면 비교
     if (previousData != null) {
       final List<dynamic> prevList = jsonDecode(previousData);
-      final prevNicknames = prevList.cast<Map<String, dynamic>>().map((e) => e['nickname'].toString()).toList();
+      final prevNicknames = prevList
+          .cast<Map<String, dynamic>>()
+          .map((e) => e['nickname'].toString())
+          .toList();
       final prevMeIndex = prevNicknames.indexWhere((e) => e.contains('(나)'));
 
       for (int i = 0; i < prevNicknames.length; i++) {
@@ -101,14 +108,16 @@ class _FriendRankingScreenState extends State<FriendRankingScreen> {
     }
 
     // 랭킹 저장
-    await prefs.setString('last_rank_list_${_selectedFilter.name}', jsonEncode(rankings));
+    await prefs.setString(
+        'last_rank_list_${_selectedFilter.name}', jsonEncode(rankings));
   }
 
   Future<void> _setupRealtimeRanking() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     final friendUids = List<String>.from(userDoc['friends'] ?? []);
     friendUids.add(uid); // 나 자신 포함
 
@@ -137,7 +146,8 @@ class _FriendRankingScreenState extends State<FriendRankingScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     final friendUids = List<String>.from(doc['friends'] ?? []);
     friendUids.add(uid); // 🔥 나 자신 포함
     final Set<String> uniqueUids = friendUids.toSet();
@@ -145,7 +155,8 @@ class _FriendRankingScreenState extends State<FriendRankingScreen> {
     await _saveRankingToCache(rankings);
 
     // 내 현재 순위 구하기
-    final myIndex = rankings.indexWhere((r) => r['nickname'].toString().contains('(나)'));
+    final myIndex =
+        rankings.indexWhere((r) => r['nickname'].toString().contains('(나)'));
 
     // 이전 순위 불러오기
     final previousIndex = await _loadMyPreviousRank();
@@ -166,7 +177,10 @@ class _FriendRankingScreenState extends State<FriendRankingScreen> {
     await _saveMyRankingIndex(myIndex);
 
     for (final userUid in uniqueUids) {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userUid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userUid)
+          .get();
       final nickname = userDoc['nickname'] ?? '알 수 없음';
       final records = await fetchRunRecordsForUser(userUid);
       final totalDistance = _calculateDistance(records, _selectedFilter);
@@ -185,18 +199,22 @@ class _FriendRankingScreenState extends State<FriendRankingScreen> {
     });
   }
 
-  double _calculateDistance(List<Map<String, dynamic>> records, RankingFilter filter) {
-    final now = DateTime.now();
-    return records.fold(0.0, (sum, r) {
+  double _calculateDistance(
+      List<Map<String, dynamic>> records, RankingFilter filter) {
+    return records.fold(0.0, (total, r) {
       final dateStr = r['date'];
       final distance = r['distance'] ?? 0.0;
       final recordDate = DateTime.tryParse(dateStr);
-      if (recordDate == null) return sum;
+      if (recordDate == null) return total;
 
-      if (filter == RankingFilter.weekly && !_isInWeek(recordDate)) return sum;
-      if (filter == RankingFilter.monthly && !_isInMonth(recordDate)) return sum;
+      if (filter == RankingFilter.weekly && !_isInWeek(recordDate)) {
+        return total;
+      }
+      if (filter == RankingFilter.monthly && !_isInMonth(recordDate)) {
+        return total;
+      }
 
-      return sum + distance;
+      return total + distance;
     });
   }
 
@@ -245,77 +263,79 @@ class _FriendRankingScreenState extends State<FriendRankingScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
-        children: [
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              ChoiceChip(
-                label: const Text("전체"),
-                selected: _selectedFilter == RankingFilter.total,
-                selectedColor: Colors.redAccent,
-                onSelected: (_) => _changeFilter(RankingFilter.total),
-              ),
-              ChoiceChip(
-                label: const Text("주간"),
-                selected: _selectedFilter == RankingFilter.weekly,
-                selectedColor: Colors.redAccent,
-                onSelected: (_) => _changeFilter(RankingFilter.weekly),
-              ),
-              ChoiceChip(
-                label: const Text("월간"),
-                selected: _selectedFilter == RankingFilter.monthly,
-                selectedColor: Colors.redAccent,
-                onSelected: (_) => _changeFilter(RankingFilter.monthly),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: _friendRankings.isEmpty
-                ? const Center(child: Text("랭킹 데이터가 없습니다."))
-                : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _friendRankings.length,
-              itemBuilder: (context, index) {
-                final friend = _friendRankings[index];
-                final isMe = friend['nickname'].contains('(나)');
-                final distance = friend['totalDistance'].toStringAsFixed(2);
-                final tileColor = getRankTileColor(index);
+              children: [
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ChoiceChip(
+                      label: const Text("전체"),
+                      selected: _selectedFilter == RankingFilter.total,
+                      selectedColor: Colors.redAccent,
+                      onSelected: (_) => _changeFilter(RankingFilter.total),
+                    ),
+                    ChoiceChip(
+                      label: const Text("주간"),
+                      selected: _selectedFilter == RankingFilter.weekly,
+                      selectedColor: Colors.redAccent,
+                      onSelected: (_) => _changeFilter(RankingFilter.weekly),
+                    ),
+                    ChoiceChip(
+                      label: const Text("월간"),
+                      selected: _selectedFilter == RankingFilter.monthly,
+                      selectedColor: Colors.redAccent,
+                      onSelected: (_) => _changeFilter(RankingFilter.monthly),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _friendRankings.isEmpty
+                      ? const Center(child: Text("랭킹 데이터가 없습니다."))
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _friendRankings.length,
+                          itemBuilder: (context, index) {
+                            final friend = _friendRankings[index];
+                            final isMe = friend['nickname'].contains('(나)');
+                            final distance =
+                                friend['totalDistance'].toStringAsFixed(2);
+                            final tileColor = getRankTileColor(index);
 
-                return Card(
-                  color: tileColor,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: Text(
-                        getRankIcon(index),
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                    ),
-                    title: Text(
-                      friend['nickname'],
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: isMe ? Colors.red : Colors.black,
-                      ),
-                    ),
-                    trailing: Text(
-                      '$distance km',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                );
-              },
+                            return Card(
+                              color: tileColor,
+                              margin: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.white,
+                                  child: Text(
+                                    getRankIcon(index),
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                ),
+                                title: Text(
+                                  friend['nickname'],
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isMe ? Colors.red : Colors.black,
+                                  ),
+                                ),
+                                trailing: Text(
+                                  '$distance km',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

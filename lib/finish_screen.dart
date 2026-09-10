@@ -32,7 +32,8 @@ class FinishScreen extends StatefulWidget {
   State<FinishScreen> createState() => _FinishScreenState();
 }
 
-class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMixin {
+class _FinishScreenState extends State<FinishScreen>
+    with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _distanceAnimation;
   late Animation<int> _timeAnimation;
@@ -54,10 +55,12 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
     _timeAnimation = IntTween(begin: 0, end: widget.time).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
-    _caloriesAnimation = IntTween(begin: 0, end: widget.calories.toInt()).animate(
+    _caloriesAnimation =
+        IntTween(begin: 0, end: widget.calories.toInt()).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
-    _heartRateAnimation = IntTween(begin: 0, end: widget.averageHeartRate).animate(
+    _heartRateAnimation =
+        IntTween(begin: 0, end: widget.averageHeartRate).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
 
@@ -69,7 +72,9 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
       final routeDocId = widget.routeDocId;
       if (routeDocId == null) return;
 
-      final docRef = FirebaseFirestore.instance.collection('shared_routes').doc(routeDocId);
+      final docRef = FirebaseFirestore.instance
+          .collection('shared_routes')
+          .doc(routeDocId);
       final snapshot = await docRef.get();
 
       if (!snapshot.exists) return;
@@ -78,9 +83,11 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
       final double currentRating = (data['rating'] ?? 0).toDouble();
       final int currentCount = (data['ratingCount'] ?? 0).toInt();
       final int currentUserCount = (data['userPlayedCount'] ?? 0).toInt();
-      final int currentCommunityCount = (data['communityPlayedCount'] ?? 0).toInt();
+      final int currentCommunityCount =
+          (data['communityPlayedCount'] ?? 0).toInt();
 
-      final double newAverage = ((currentRating * currentCount) + newRating) / (currentCount + 1);
+      final double newAverage =
+          ((currentRating * currentCount) + newRating) / (currentCount + 1);
 
       await docRef.update({
         'rating': double.parse(newAverage.toStringAsFixed(2)),
@@ -89,11 +96,12 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
         'communityPlayedCount': currentCommunityCount + 1,
       });
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ 루트 평가가 저장되었습니다.')),
       );
     } catch (e) {
-      print('❌ 평가 저장 실패: $e');
+      debugPrint('❌ 평가 저장 실패: $e');
     }
   }
 
@@ -108,20 +116,25 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
           content: StatefulBuilder(
             builder: (context, setState) => Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) => IconButton(
-                icon: Icon(
-                  index < rating ? Icons.star : Icons.star_border,
-                  color: Colors.amber,
-                ),
-                onPressed: () => setState(() => rating = index + 1.0),
-              )),
+              children: List.generate(
+                  5,
+                  (index) => IconButton(
+                        icon: Icon(
+                          index < rating ? Icons.star : Icons.star_border,
+                          color: Colors.amber,
+                        ),
+                        onPressed: () => setState(() => rating = index + 1.0),
+                      )),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('취소')),
             TextButton(
               onPressed: () async {
                 await _submitRouteRating(rating);
+                if (!context.mounted) return;
                 Navigator.pop(context);
               },
               child: const Text('저장'),
@@ -157,15 +170,17 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
                 builder: (context, setState) {
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) => IconButton(
-                      icon: Icon(
-                        index < rating ? Icons.star : Icons.star_border,
-                        color: Colors.amber,
-                      ),
-                      onPressed: () {
-                        setState(() => rating = index + 1.0);
-                      },
-                    )),
+                    children: List.generate(
+                        5,
+                        (index) => IconButton(
+                              icon: Icon(
+                                index < rating ? Icons.star : Icons.star_border,
+                                color: Colors.amber,
+                              ),
+                              onPressed: () {
+                                setState(() => rating = index + 1.0);
+                              },
+                            )),
                   );
                 },
               ),
@@ -181,17 +196,23 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
               onPressed: () async {
                 if (routeTitle.trim().isEmpty || rating == 0.0) return;
 
-                final recordRef = FirebaseFirestore.instance.collection('run_records').doc(widget.runRecordId);
+                final recordRef = FirebaseFirestore.instance
+                    .collection('run_records')
+                    .doc(widget.runRecordId);
 
-                await FirebaseFirestore.instance.collection('shared_routes').add({
+                await FirebaseFirestore.instance
+                    .collection('shared_routes')
+                    .add({
                   'title': routeTitle.trim(),
                   'distance': (widget.distance * 1000).toInt(),
                   'estimatedTime': '${widget.time ~/ 60}분',
                   'calories': widget.calories.toStringAsFixed(1),
-                  'route': widget.routePath.map((point) => {
-                    'lat': point.latitude,
-                    'lng': point.longitude,
-                  }).toList(),
+                  'route': widget.routePath
+                      .map((point) => {
+                            'lat': point.latitude,
+                            'lng': point.longitude,
+                          })
+                      .toList(),
                   'createdAt': Timestamp.now(),
                   'rating': rating,
                   'ratingCount': 1,
@@ -202,8 +223,8 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
                   'recordRef': recordRef.id,
                 });
 
+                if (!context.mounted) return;
                 Navigator.pop(context);
-                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('✅ 루트가 공유되었습니다.')),
                 );
@@ -238,7 +259,9 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
             child: NaverMap(
               options: NaverMapViewOptions(
                 initialCameraPosition: NCameraPosition(
-                  target: widget.routePath.isNotEmpty ? widget.routePath.first : const NLatLng(37.5665, 126.9780),
+                  target: widget.routePath.isNotEmpty
+                      ? widget.routePath.first
+                      : const NLatLng(37.5665, 126.9780),
                   zoom: 15,
                 ),
               ),
@@ -261,18 +284,25 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
+                color: Colors.black.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Column(
                 children: [
-                  Text("$dayOfWeek 러닝 완료!", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text("$dayOfWeek 러닝 완료!",
+                      style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
                   const SizedBox(height: 10),
                   AnimatedBuilder(
                     animation: _distanceAnimation,
                     builder: (context, child) => Text(
                       "${_distanceAnimation.value.toStringAsFixed(2)} km",
-                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -280,7 +310,10 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
                     animation: _heartRateAnimation,
                     builder: (context, child) => Text(
                       "❤️ 평균 심박수: ${widget.averageHeartRate == 0 ? '--' : '${widget.averageHeartRate} bpm'}",
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -289,10 +322,13 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
                     children: [
                       _buildInfoColumn("⏱ 시간", _timeAnimation, isTime: true),
                       _buildInfoColumn("🔥 칼로리", _caloriesAnimation),
-                      _buildInfoColumn("⚡ 평균 페이스",
+                      _buildInfoColumn(
+                        "⚡ 평균 페이스",
                         Tween<int>(
                           begin: 0,
-                          end: widget.distance > 0 ? (widget.time ~/ widget.distance) : 0,
+                          end: widget.distance > 0
+                              ? (widget.time ~/ widget.distance)
+                              : 0,
                         ).animate(_controller),
                       ),
                     ],
@@ -300,21 +336,29 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
                   const SizedBox(height: 20),
                   widget.fromSharedRoute
                       ? ElevatedButton(
-                    onPressed: _showRatingDialog,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    ),
-                    child: const Text('⭐ 루트 평가하기', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  )
+                          onPressed: _showRatingDialog,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30)),
+                          ),
+                          child: const Text('⭐ 루트 평가하기',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                        )
                       : ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                    ),
-                    child: const Text('루트 공유하기', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
+                          onPressed: _shareRouteToFirestore,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30)),
+                          ),
+                          child: const Text('루트 공유하기',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                        ),
                 ],
               ),
             ),
@@ -327,17 +371,19 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
               onPressed: () {
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => const HomeScreen()),
-                      (route) => false,
+                  (route) => false,
                 );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
                 elevation: 5,
               ),
-              child: const Text("🏠 메인 화면으로", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              child: const Text("🏠 메인 화면으로",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -345,7 +391,8 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildInfoColumn(String title, Animation<int> animation, {bool isTime = false}) {
+  Widget _buildInfoColumn(String title, Animation<int> animation,
+      {bool isTime = false}) {
     return Column(
       children: [
         Text(title, style: const TextStyle(fontSize: 14, color: Colors.white)),
@@ -353,8 +400,11 @@ class _FinishScreenState extends State<FinishScreen> with TickerProviderStateMix
         AnimatedBuilder(
           animation: animation,
           builder: (context, child) => Text(
-            isTime ? _formatTime(animation.value) : "${animation.value} ${title == '🔥 칼로리' ? 'kcal' : '/km'}",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+            isTime
+                ? _formatTime(animation.value)
+                : "${animation.value} ${title == '🔥 칼로리' ? 'kcal' : '/km'}",
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
           ),
         ),
       ],

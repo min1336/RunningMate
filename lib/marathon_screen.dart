@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'marathon_calendar_screen.dart';
 
-
 class MarathonScreen extends StatefulWidget {
   const MarathonScreen({super.key});
 
@@ -29,7 +28,8 @@ class _MarathonScreenState extends State<MarathonScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final snapshot = await FirebaseFirestore.instance.collection('marathons').get();
+    final snapshot =
+        await FirebaseFirestore.instance.collection('marathons').get();
     final List<Map<String, dynamic>> marathons = [];
 
     for (final doc in snapshot.docs) {
@@ -53,7 +53,10 @@ class _MarathonScreenState extends State<MarathonScreen> {
   Future<void> _applyForMarathon(String marathonId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    await FirebaseFirestore.instance.collection('marathons').doc(marathonId).update({
+    await FirebaseFirestore.instance
+        .collection('marathons')
+        .doc(marathonId)
+        .update({
       'participants': FieldValue.arrayUnion([uid])
     });
     await _loadMarathons(); // 상태 동기화
@@ -63,30 +66,39 @@ class _MarathonScreenState extends State<MarathonScreen> {
   Future<void> _cancelMarathon(String marathonId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    await FirebaseFirestore.instance.collection('marathons').doc(marathonId).update({
+    await FirebaseFirestore.instance
+        .collection('marathons')
+        .doc(marathonId)
+        .update({
       'participants': FieldValue.arrayRemove([uid])
     });
     await _loadMarathons(); // 상태 갱신
     setState(() {});
   }
 
-
-
-  Future<List<Map<String, dynamic>>> getFriendsInMarathon(String marathonId) async {
+  Future<List<Map<String, dynamic>>> getFriendsInMarathon(
+      String marathonId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return [];
 
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     final friends = List<String>.from(userDoc['friends'] ?? []);
 
-    final marathonDoc = await FirebaseFirestore.instance.collection('marathons').doc(marathonId).get();
+    final marathonDoc = await FirebaseFirestore.instance
+        .collection('marathons')
+        .doc(marathonId)
+        .get();
     final participants = List<String>.from(marathonDoc['participants'] ?? []);
 
     final List<Map<String, dynamic>> result = [];
 
     for (final friendUid in friends) {
       if (participants.contains(friendUid)) {
-        final friendDoc = await FirebaseFirestore.instance.collection('users').doc(friendUid).get();
+        final friendDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(friendUid)
+            .get();
         result.add({
           'uid': friendUid,
           'nickname': friendDoc['nickname'] ?? '알 수 없음',
@@ -101,7 +113,10 @@ class _MarathonScreenState extends State<MarathonScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return false;
 
-    final doc = await FirebaseFirestore.instance.collection('marathons').doc(marathonId).get();
+    final doc = await FirebaseFirestore.instance
+        .collection('marathons')
+        .doc(marathonId)
+        .get();
     final participants = List<String>.from(doc.data()?['participants'] ?? []);
     return participants.contains(uid);
   }
@@ -113,7 +128,8 @@ class _MarathonScreenState extends State<MarathonScreen> {
     });
   }
 
-  void _showMarathonDialog(BuildContext context, Map<String, dynamic> marathon) {
+  void _showMarathonDialog(
+      BuildContext context, Map<String, dynamic> marathon) {
     final now = DateTime.now();
     final marathonId = marathon['id']; // 🔥 여기서 id 꺼냄
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -130,9 +146,11 @@ class _MarathonScreenState extends State<MarathonScreen> {
       context: context,
       builder: (_) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.75),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -152,13 +170,13 @@ class _MarathonScreenState extends State<MarathonScreen> {
                         child: Center(
                           child: dDay != null
                               ? Text(
-                            "D-${dDay >= 0 ? dDay : 0}",
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.redAccent,
-                            ),
-                          )
+                                  "D-${dDay >= 0 ? dDay : 0}",
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.redAccent,
+                                  ),
+                                )
                               : const SizedBox(),
                         ),
                       ),
@@ -170,9 +188,12 @@ class _MarathonScreenState extends State<MarathonScreen> {
                           );
                         },
                         itemBuilder: (BuildContext context) => [
-                          const PopupMenuItem(value: '공유하기', child: Text('공유하기')),
-                          const PopupMenuItem(value: '대회규정', child: Text('대회규정')),
-                          const PopupMenuItem(value: '공식사이트', child: Text('공식사이트')),
+                          const PopupMenuItem(
+                              value: '공유하기', child: Text('공유하기')),
+                          const PopupMenuItem(
+                              value: '대회규정', child: Text('대회규정')),
+                          const PopupMenuItem(
+                              value: '공식사이트', child: Text('공식사이트')),
                         ],
                       ),
                     ],
@@ -180,17 +201,22 @@ class _MarathonScreenState extends State<MarathonScreen> {
                   const SizedBox(height: 10),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(15),
-                    child: Image.asset(marathon["poster"], height: 200, fit: BoxFit.cover),
+                    child: Image.asset(marathon["poster"],
+                        height: 200, fit: BoxFit.cover),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     marathon["title"],
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red),
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red),
                   ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
+                      const Icon(Icons.calendar_today,
+                          size: 18, color: Colors.grey),
                       const SizedBox(width: 6),
                       Text(marathon["date"]),
                     ],
@@ -206,7 +232,8 @@ class _MarathonScreenState extends State<MarathonScreen> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.directions_run, size: 18, color: Colors.grey),
+                      const Icon(Icons.directions_run,
+                          size: 18, color: Colors.grey),
                       const SizedBox(width: 6),
                       Text(marathon["distance"]),
                     ],
@@ -223,8 +250,9 @@ class _MarathonScreenState extends State<MarathonScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 16),
-                          const Text("👟 친구 중 참가자", style: TextStyle(fontWeight: FontWeight.bold)),
-                          ...friends.map((f) => Text("• ${f['nickname']}")).toList(),
+                          const Text("👟 친구 중 참가자",
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          ...friends.map((f) => Text("• ${f['nickname']}")),
                         ],
                       );
                     },
@@ -239,7 +267,9 @@ class _MarathonScreenState extends State<MarathonScreen> {
                         await _applyForMarathon(marathonId);
                       }
 
+                      if (!context.mounted) return;
                       Navigator.pop(context); // 다이얼로그 닫기
+                      if (!mounted) return;
                       setState(() {}); // 재랜더링
                     },
                     icon: Icon(Icons.check),
@@ -259,8 +289,10 @@ class _MarathonScreenState extends State<MarathonScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final appliedMarathons = marathonList.where((m) => m['isApplied'] == true).toList();
-    final availableMarathons = marathonList.where((m) => m['isApplied'] == false).toList();
+    final appliedMarathons =
+        marathonList.where((m) => m['isApplied'] == true).toList();
+    final availableMarathons =
+        marathonList.where((m) => m['isApplied'] == false).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -273,7 +305,8 @@ class _MarathonScreenState extends State<MarathonScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const MarathonCalendarScreen()),
+                MaterialPageRoute(
+                    builder: (_) => const MarathonCalendarScreen()),
               );
             },
           ),
@@ -286,21 +319,27 @@ class _MarathonScreenState extends State<MarathonScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("✅ 참가중인 마라톤", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text("✅ 참가중인 마라톤",
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
-                ...appliedMarathons.map((m) => _buildMarathonCard(context, m, isApplied: true)),
+                ...appliedMarathons.map(
+                    (m) => _buildMarathonCard(context, m, isApplied: true)),
                 const SizedBox(height: 30),
               ],
             ),
-          const Text("📋 신청 가능한 마라톤", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text("📋 신청 가능한 마라톤",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
-          ...availableMarathons.map((m) => _buildMarathonCard(context, m, isApplied: false)),
+          ...availableMarathons
+              .map((m) => _buildMarathonCard(context, m, isApplied: false)),
         ],
       ),
     );
   }
 
-  Widget _buildMarathonCard(BuildContext context, Map<String, dynamic> marathon, {required bool isApplied}) {
+  Widget _buildMarathonCard(BuildContext context, Map<String, dynamic> marathon,
+      {required bool isApplied}) {
     DateTime? parsedDate;
     try {
       parsedDate = DateFormat("yyyy년 M월 d일").parseStrict(marathon["date"]);
@@ -322,7 +361,8 @@ class _MarathonScreenState extends State<MarathonScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(marathon["poster"], width: 80, height: 80, fit: BoxFit.cover),
+                child: Image.asset(marathon["poster"],
+                    width: 80, height: 80, fit: BoxFit.cover),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -350,7 +390,8 @@ class _MarathonScreenState extends State<MarathonScreen> {
               ),
               if (dDay != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: dDay <= 3 ? Colors.red : Colors.grey[300],
                     borderRadius: BorderRadius.circular(12),
@@ -371,21 +412,29 @@ class _MarathonScreenState extends State<MarathonScreen> {
   }
 }
 
-Future<List<Map<String, dynamic>>> getFriendsInMarathon(String marathonId) async {
+Future<List<Map<String, dynamic>>> getFriendsInMarathon(
+    String marathonId) async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return [];
 
-  final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+  final userDoc =
+      await FirebaseFirestore.instance.collection('users').doc(uid).get();
   final friends = List<String>.from(userDoc['friends'] ?? []);
 
-  final marathonDoc = await FirebaseFirestore.instance.collection('marathons').doc(marathonId).get();
+  final marathonDoc = await FirebaseFirestore.instance
+      .collection('marathons')
+      .doc(marathonId)
+      .get();
   final participants = List<String>.from(marathonDoc['participants'] ?? []);
 
   final List<Map<String, dynamic>> result = [];
 
   for (final friendUid in friends) {
     if (participants.contains(friendUid)) {
-      final friendDoc = await FirebaseFirestore.instance.collection('users').doc(friendUid).get();
+      final friendDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(friendUid)
+          .get();
       result.add({
         'uid': friendUid,
         'nickname': friendDoc['nickname'] ?? '알 수 없음',

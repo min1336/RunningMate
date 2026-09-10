@@ -29,26 +29,22 @@ class RunningTTS {
   ];
 
   RunningTTS(this.runningScreen) {
-    print("🔥 RunningTTS 생성됨!");
+    debugPrint("🔥 RunningTTS 생성됨!");
 
     _statsSubscription = runningScreen.statsStream.listen(
-          (stats) {
+      (stats) {
         _handleRunningStats(stats);
       },
       onError: (error) {
-        print("❌ Stream 오류: $error");
+        debugPrint("❌ Stream 오류: $error");
       },
       onDone: () {
-        print("✅ Stream 종료됨");
+        debugPrint("✅ Stream 종료됨");
       },
     );
   }
 
   void _handleRunningStats(Map<String, dynamic> stats) {
-    int elapsedTime = stats['elapsedTime'];
-    double caloriesBurned = stats['caloriesBurned'];
-    String pace = stats['pace'];
-    double distance = stats['totalDistance'];
     bool isPaused = stats['paused'];
     bool restart = stats['restart'];
     bool stop = stats['stop'];
@@ -103,13 +99,13 @@ class RunningTTS {
     try {
       await _ttsPlayer.stop();
       await _ttsPlayer.play(AssetSource(filePath));
-      print("📢 TTS 재생 시작: $filePath");
+      debugPrint("📢 TTS 재생 시작: $filePath");
 
       // 🎯 재생 완료까지 대기
       await _ttsPlayer.onPlayerComplete.first;
-      print("📢 TTS 재생 완료: $filePath");
+      debugPrint("📢 TTS 재생 완료: $filePath");
     } catch (e) {
-      print("❌ TTS 재생 오류: $e");
+      debugPrint("❌ TTS 재생 오류: $e");
     }
   }
 
@@ -123,7 +119,7 @@ class RunningTTS {
     try {
       await _bgmPlayer.stop();
       await _bgmPlayer.play(AssetSource(_currentBGM!));
-      print("🎧 BGM 재생: $_currentBGM");
+      debugPrint("🎧 BGM 재생: $_currentBGM");
 
       _bgmPlayer.onPlayerComplete.listen((_) {
         _isPlaying = false;
@@ -134,7 +130,7 @@ class RunningTTS {
         _currentPosition = position;
       });
     } catch (e) {
-      print("❌ BGM 재생 오류: $e");
+      debugPrint("❌ BGM 재생 오류: $e");
       _isPlaying = false;
     }
   }
@@ -145,9 +141,9 @@ class RunningTTS {
       await _bgmPlayer.stop();
       currentBGMNotifier.value = null;
       _isPlaying = false;
-      print("⏹️ BGM 정지");
+      debugPrint("⏹️ BGM 정지");
     } catch (e) {
-      print("❌ BGM 정지 오류: $e");
+      debugPrint("❌ BGM 정지 오류: $e");
     }
   }
 
@@ -155,7 +151,7 @@ class RunningTTS {
   void _saveBGMPosition() {
     _bgmPlayer.getCurrentPosition().then((position) {
       _currentPosition = position;
-      print("💾 저장된 위치: $_currentPosition");
+      debugPrint("💾 저장된 위치: $_currentPosition");
     });
   }
 
@@ -170,9 +166,9 @@ class RunningTTS {
         position: _currentPosition!,
       );
       _isPlaying = true;
-      print("▶️ BGM 이어 재생: $_currentBGM from $_currentPosition");
+      debugPrint("▶️ BGM 이어 재생: $_currentBGM from $_currentPosition");
     } catch (e) {
-      print("❌ 이어 재생 오류: $e");
+      debugPrint("❌ 이어 재생 오류: $e");
     }
   }
 

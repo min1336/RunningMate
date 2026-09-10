@@ -11,10 +11,33 @@ class RouteDetailScreen extends StatelessWidget {
     return raw.map((e) => NLatLng(e['lat'], e['lng'])).toList();
   }
 
+  int _parseTime(String timeStr) {
+    if (timeStr.contains(':')) {
+      final parts = timeStr.split(':');
+      if (parts.length != 2) return 0;
+
+      final minutes = int.tryParse(parts[0]) ?? 0;
+      final seconds = int.tryParse(parts[1]) ?? 0;
+      return minutes * 60 + seconds;
+    }
+
+    if (timeStr.contains('분')) {
+      final minutes = int.tryParse(timeStr.replaceAll('분', '').trim()) ?? 0;
+      return minutes * 60;
+    }
+
+    if (timeStr.contains('초')) {
+      return int.tryParse(timeStr.replaceAll('초', '').trim()) ?? 0;
+    }
+
+    return 0;
+  }
+
   List<Widget> _buildStarRating(double rating) {
     final List<Widget> stars = [];
     final fullStars = rating.floor();
-    final hasHalfStar = (rating - fullStars) >= 0.25 && (rating - fullStars) < 0.75;
+    final hasHalfStar =
+        (rating - fullStars) >= 0.25 && (rating - fullStars) < 0.75;
     final emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
 
     for (int i = 0; i < fullStars; i++) {
@@ -43,6 +66,7 @@ class RouteDetailScreen extends StatelessWidget {
     final userPlayed = route['userPlayedCount'] ?? 0;
     final communityPlayed = route['communityPlayedCount'] ?? 0;
     final location = route['location'] ?? '위치 정보 없음';
+    final ghostDuration = _parseTime(time);
 
     return Scaffold(
       body: Stack(
@@ -51,7 +75,9 @@ class RouteDetailScreen extends StatelessWidget {
           NaverMap(
             options: NaverMapViewOptions(
               initialCameraPosition: NCameraPosition(
-                target: path.isNotEmpty ? path.first : const NLatLng(37.5665, 126.9780),
+                target: path.isNotEmpty
+                    ? path.first
+                    : const NLatLng(37.5665, 126.9780),
                 zoom: 15,
               ),
             ),
@@ -62,7 +88,8 @@ class RouteDetailScreen extends StatelessWidget {
                   coords: path,
                   color: Colors.redAccent,
                   width: 6,
-                  patternImage: NOverlayImage.fromAssetImage('assets/images/pattern.png'),
+                  patternImage:
+                      NOverlayImage.fromAssetImage('assets/images/pattern.png'),
                   patternInterval: 30,
                 ));
               }
@@ -97,7 +124,8 @@ class RouteDetailScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(25)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black26,
@@ -120,7 +148,9 @@ class RouteDetailScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text(name,
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
                     Text('$distance m ($time)'),
                     const SizedBox(height: 10),
@@ -128,7 +158,8 @@ class RouteDetailScreen extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         minimumSize: const Size.fromHeight(45),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30)),
                       ),
                       onPressed: () {
                         if (path.isNotEmpty) {
@@ -140,6 +171,8 @@ class RouteDetailScreen extends StatelessWidget {
                                 startLocation: path.first,
                                 fromSharedRoute: true,
                                 routeDocId: route['docId'],
+                                ghostPath: path,
+                                ghostDuration: ghostDuration,
                               ),
                             ),
                           );
@@ -153,7 +186,9 @@ class RouteDetailScreen extends StatelessWidget {
                       children: [
                         Column(
                           children: [
-                            Text('$communityPlayed', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Text('$communityPlayed',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
                             const Text('커뮤니티가 플레이한 수'),
                           ],
                         ),
@@ -161,7 +196,9 @@ class RouteDetailScreen extends StatelessWidget {
                           children: [
                             Row(
                               children: [
-                                Text(rating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold)),
+                                Text(rating.toStringAsFixed(1),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold)),
                                 Text(' ($ratingCount)'),
                               ],
                             ),
@@ -170,7 +207,9 @@ class RouteDetailScreen extends StatelessWidget {
                         ),
                         Column(
                           children: [
-                            Text('$userPlayed', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Text('$userPlayed',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
                             const Text('내가 플레이한 수'),
                           ],
                         ),

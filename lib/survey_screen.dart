@@ -38,6 +38,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
       'surveyDone': true,
     });
 
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const HomeScreen()),

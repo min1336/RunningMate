@@ -2,10 +2,11 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:run1220/recommended_routes_slider.dart';
 import 'package:run1220/route_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'profile.dart';
-import 'Calendar.dart';
+import 'calendar.dart';
 import 'naver.dart';
 import 'package:run1220/marathon_screen.dart';
 import 'package:run1220/friend_screen.dart';
@@ -75,7 +76,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       _updateUserStatus('offline');
     } else if (state == AppLifecycleState.resumed) {
       _updateUserStatus('online');
@@ -121,7 +123,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: CircleAvatar(
                       backgroundImage: _profileImage != null
                           ? FileImage(_profileImage!)
-                          : AssetImage('assets/images/default_profile.png') as ImageProvider,
+                          : AssetImage('assets/images/default_profile.png')
+                              as ImageProvider,
                       radius: 40,
                     ),
                   ),
@@ -180,7 +183,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: CircleAvatar(
                 backgroundImage: _profileImage != null
                     ? FileImage(_profileImage!)
-                    : AssetImage('assets/images/default_profile.png') as ImageProvider,
+                    : AssetImage('assets/images/default_profile.png')
+                        as ImageProvider,
                 radius: 20,
               ),
             ),
@@ -190,8 +194,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       body: PageView(
         controller: _pageController,
         onPageChanged: _onPageChanged,
-        children: _screens,
         physics: const BouncingScrollPhysics(),
+        children: _screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
@@ -202,9 +206,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.sports), label: '마라톤'),
           BottomNavigationBarItem(icon: Icon(Icons.people), label: '친구'),
-          BottomNavigationBarItem(icon: Icon(Icons.directions_run), label: '달리기'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.directions_run), label: '달리기'),
           BottomNavigationBarItem(icon: Icon(Icons.route), label: '루트'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: '캘린더'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_today), label: '캘린더'),
         ],
       ),
     );
@@ -232,18 +238,21 @@ class MainScreen extends StatelessWidget {
 
   _LevelInfo _getLevel(double distance) {
     if (distance < 0.3) {
-      return _LevelInfo('🟤 브론즈', '실버', distance / 0.3, Colors.brown, Colors.white);
+      return _LevelInfo(
+          '🟤 브론즈', '실버', distance / 0.3, Colors.brown, Colors.white);
     } else if (distance < 0.5) {
-      return _LevelInfo('⚪ 실버', '골드', (distance - 0.3) / 0.2, Colors.grey.shade300, Colors.black87);
+      return _LevelInfo('⚪ 실버', '골드', (distance - 0.3) / 0.2,
+          Colors.grey.shade300, Colors.black87);
     } else if (distance < 0.6) {
-      return _LevelInfo('🟡 골드', '다이아', (distance - 0.5) / 0.1, Colors.amber, Colors.black87);
+      return _LevelInfo(
+          '🟡 골드', '다이아', (distance - 0.5) / 0.1, Colors.amber, Colors.black87);
     } else if (distance < 0.7) {
-      return _LevelInfo('🔷 다이아', '마스터', (distance - 0.6) / 0.1, Colors.lightBlue, Colors.black87);
+      return _LevelInfo('🔷 다이아', '마스터', (distance - 0.6) / 0.1,
+          Colors.lightBlue, Colors.black87);
     } else {
       return _LevelInfo('🏆 마스터', '-', 1.0, Colors.teal, Colors.white);
     }
   }
-
 
   double _getRemaining(double distance) {
     if (distance < 0.3) return 0.3 - distance;
@@ -253,12 +262,12 @@ class MainScreen extends StatelessWidget {
     return 0.0;
   }
 
-
   Future<String> getUserLevel() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return '';
 
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     final data = doc.data();
 
     final workouts = int.tryParse(data?['workoutPerWeek'] ?? '0') ?? 0;
@@ -302,7 +311,6 @@ class MainScreen extends StatelessWidget {
               },
             ),
             const SizedBox(height: 30),
-
             FutureBuilder<double>(
               future: getTotalDistance(),
               builder: (context, snapshot) {
@@ -328,19 +336,28 @@ class MainScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(level.label,
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: level.textColor)),
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: level.textColor)),
                       const SizedBox(height: 8),
                       Text(
                         distance.toStringAsFixed(2),
-                        style: TextStyle(fontSize: 44, fontWeight: FontWeight.bold, color: level.textColor),
+                        style: TextStyle(
+                            fontSize: 44,
+                            fontWeight: FontWeight.bold,
+                            color: level.textColor),
                       ),
-                      Text("총 거리 (킬로미터)", style: TextStyle(fontSize: 16, color: level.textColor)),
+                      Text("총 거리 (킬로미터)",
+                          style:
+                              TextStyle(fontSize: 16, color: level.textColor)),
                       const SizedBox(height: 16),
                       LinearProgressIndicator(
                         value: level.progress,
                         minHeight: 8,
-                        valueColor: AlwaysStoppedAnimation<Color>(level.textColor),
-                        backgroundColor: level.textColor.withOpacity(0.2),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(level.textColor),
+                        backgroundColor: level.textColor.withValues(alpha: 0.2),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -354,8 +371,9 @@ class MainScreen extends StatelessWidget {
                 );
               },
             ),
-
-            const SizedBox(height: 40),
+            const SizedBox(height: 20),
+            const RecommendedRoutesSlider(),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
@@ -364,11 +382,14 @@ class MainScreen extends StatelessWidget {
                 );
               },
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                textStyle:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30)),
               ),
               child: const Text('🏃 달리기 시작'),
             ),
@@ -387,13 +408,9 @@ class _LevelInfo {
   final Color bgColor;
   final Color textColor;
 
-  _LevelInfo(this.label, this.nextLabel, this.progress, this.bgColor, this.textColor);
+  _LevelInfo(
+      this.label, this.nextLabel, this.progress, this.bgColor, this.textColor);
 }
-
-
-
-
-
 
 class BattleScreen extends StatelessWidget {
   const BattleScreen({super.key});
